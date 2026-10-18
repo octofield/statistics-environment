@@ -1,0 +1,5 @@
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}/../__WINPY__/python/python.exe",
+    "python.analysis.extraPaths": ["${workspaceFolder}"],
+    "search.exclude": { "docs-offline/**": true }
+}

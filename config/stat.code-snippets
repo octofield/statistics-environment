@@ -1,0 +1,404 @@
+{
+    // 用法：在 code cell 打前綴（例如 binom）→ 按 Tab 展開，再按 Tab 跳到下一個要填的地方。
+    // 每個 snippet 的 description 會顯示在自動完成清單右側（按 Ctrl+Space 可展開說明）。
+
+    // ======================== Python ========================
+    "標準 import": {
+        "scope": "python",
+        "prefix": "imp",
+        "description": "考試用的標準 import：math、random、statistics、matplotlib、numpy、pandas、sympy、scipy.stats，以及 statkit（sk.setup() 設定字體大小 16 與中文字型）",
+        "body": [
+            "import math",
+            "import random",
+            "import statistics",
+            "",
+            "import matplotlib.pyplot as plt",
+            "import numpy as np",
+            "import pandas as pd",
+            "import sympy as sp",
+            "from scipy import stats",
+            "",
+            "import statkit as sk",
+            "sk.setup()  # size：字體大小（預設 16）、dpi：圖的解析度（預設 100）",
+            "$0"
+        ]
+    },
+    "讀 Excel": {
+        "scope": "python",
+        "prefix": "readx",
+        "description": "pd.read_excel(路徑, sheet_name=工作表名稱)。路徑：exam/ 裡的 notebook 讀 data/ 要寫 ../data/檔名.xlsx；不知道工作表名稱可用 pd.ExcelFile(路徑).sheet_names",
+        "body": [
+            "df = pd.read_excel(\"${1:../data/檔名.xlsx}\", sheet_name=\"${2:Sheet1}\")  # 路徑、工作表名稱",
+            "df.head()  # 看前 5 列$0"
+        ]
+    },
+    "讀檔後的標準檢查": {
+        "scope": "python",
+        "prefix": "readcheck",
+        "description": "讀檔後先做的檢查：shape（列數、欄數）、columns（實際欄位名稱，注意空白）、dtypes（數字有沒有被讀成文字 str/object）、isna().sum()（每欄缺值）、duplicated().sum()（重複列）、describe()（數值範圍）。詳見 notes/00_讀入資料與整理",
+        "body": [
+            "print('列數、欄數：', ${1:df}.shape)",
+            "print('欄位：', list(${1:df}.columns))  # 注意名稱前後有沒有空白",
+            "print(${1:df}.dtypes)  # 數字欄位如果是 str / object，代表裡面有逗號或文字",
+            "print('缺值：', ${1:df}.isna().sum().to_dict())",
+            "print('重複列：', ${1:df}.duplicated().sum())",
+            "${1:df}.describe()  # 最小值、最大值合不合理$0"
+        ]
+    },
+    "次數分配表（pd.cut）": {
+        "scope": "python",
+        "prefix": "freq",
+        "description": "次數分配表與眾數組。range(下限, 上限 + 組距, 組距) 產生組界；right=False → 組別 [a, b)；value_counts(sort=False) 依組別順序計次；idxmax() 找次數最多的組，.mid 是組中點",
+        "body": [
+            "bins = range(${1:0}, ${2:40000} + ${3:5000}, ${3:5000})  # 組界：range(第一組下限, 最後上限 + 組距, 組距)",
+            "freq = pd.cut(${4:x}, bins=bins, right=False).value_counts(sort=False)  # right=False → [a, b)",
+            "print(freq)",
+            "",
+            "modal_class = freq.idxmax()  # 次數最多的組",
+            "print(\"modal class:\", modal_class, \"mode (midpoint):\", modal_class.mid)  # .mid：組中點$0"
+        ]
+    },
+    "敘述統計（statistics）": {
+        "scope": "python",
+        "prefix": "desc",
+        "description": "常用敘述統計量。pvariance / pstdev：母體（除以 N）；variance / stdev：樣本（除以 n − 1）；quantiles(n=4)：四分位數（講義的 exclusive 算法）；multimode：所有眾數",
+        "body": [
+            "values = list(${1:x})  # 資料",
+            "print('mean:              ', statistics.mean(values))",
+            "print('median:            ', statistics.median(values))",
+            "print('mode(s):           ', statistics.multimode(values))",
+            "print('population var:    ', statistics.pvariance(values))  # 母體：除以 N",
+            "print('sample var:        ', statistics.variance(values))   # 樣本：除以 n - 1",
+            "print('population std:    ', statistics.pstdev(values))",
+            "print('sample std:        ', statistics.stdev(values))",
+            "q1, q2, q3 = statistics.quantiles(values, n=4)  # n=4：四分位數；n=100：百分位數",
+            "print('Q1, Q2, Q3:        ', q1, q2, q3)",
+            "print('IQR:               ', q3 - q1)$0"
+        ]
+    },
+    "柴比雪夫 / 經驗法則": {
+        "scope": "python",
+        "prefix": "cheb",
+        "description": "驗證柴比雪夫定理：至少 1 − 1/k² 的資料落在 μ ± kσ。pstdev：母體標準差（講義）；stdev：樣本標準差（題目說視為樣本時）；k：幾個標準差",
+        "body": [
+            "values = list(${1:x})  # 資料",
+            "mu = statistics.mean(values)",
+            "sd = statistics.${2|pstdev,stdev|}(values)  # pstdev：母體；stdev：樣本",
+            "for k in [${3:1.5, 2}]:  # k：幾個標準差",
+            "    lower, upper = mu - k * sd, mu + k * sd",
+            "    within = len([v for v in values if lower <= v <= upper]) / len(values)",
+            "    print(f'k = {k}: [{lower:.2f}, {upper:.2f}], actual = {within:.4f}, Chebyshev bound = {1 - 1 / k ** 2:.4f}')$0"
+        ]
+    },
+    "1.5 IQR 離群值": {
+        "scope": "python",
+        "prefix": "outlier",
+        "description": "1.5 IQR 規則：小於 Q1 − 1.5·IQR 或大於 Q3 + 1.5·IQR 的是離群值。quantiles(n=4) 回傳 Q1、Q2、Q3",
+        "body": [
+            "q1, _, q3 = statistics.quantiles(list(${1:x}), n=4)  # Q1、Q2（不用）、Q3",
+            "iqr = q3 - q1",
+            "lower, upper = q1 - 1.5 * iqr, q3 + 1.5 * iqr  # 1.5：倍數",
+            "outliers = [v for v in ${1:x} if v < lower or v > upper]",
+            "print(f'range = [{lower:.2f}, {upper:.2f}], {len(outliers)} outlier(s): {outliers}')$0"
+        ]
+    },
+    "直方圖（指定組界）": {
+        "scope": "python",
+        "prefix": "histc",
+        "description": "直方圖。bins：組界（range(起點, 終點, 組距)，終點不含）；facecolor：長條顏色；edgecolor：框線顏色；xticks：橫軸刻度",
+        "body": [
+            "endpoints = range(${1:160}, ${2:196}, ${3:4})  # 組界：range(起點, 終點（不含）, 組距)",
+            "plt.hist(${4:x}, bins=endpoints, facecolor='lightgrey', edgecolor='black')  # bins：組界",
+            "plt.xticks(endpoints)  # 橫軸刻度放在組界上",
+            "plt.xlabel('${5:Value}')",
+            "plt.ylabel('Frequency')",
+            "plt.title('${6:Title}')",
+            "plt.show()$0"
+        ]
+    },
+    "多張子圖": {
+        "scope": "python",
+        "prefix": "subplots",
+        "description": "一張圖裡放多個子圖。plt.subplots(列數, 欄數, figsize=(寬, 高))；axes[i] 是第 i 個子圖，用 axes[i].hist / set_title 等畫圖",
+        "body": [
+            "fig, axes = plt.subplots(${1:1}, ${2:2}, figsize=(${3:12}, ${4:5}))  # 列數、欄數、figsize=(寬, 高)",
+            "axes[0].hist(${5:x}, bins=10, color='lightgrey', edgecolor='black')  # bins：組數",
+            "axes[0].set_title('${6:A}')",
+            "axes[1].hist(${7:y}, bins=10, color='lightgrey', edgecolor='black')",
+            "axes[1].set_title('${8:B}')",
+            "plt.show()$0"
+        ]
+    },
+    "盒鬚圖": {
+        "scope": "python",
+        "prefix": "boxp",
+        "description": "盒鬚圖（可多組並排）。第一個引數是資料的 list；tick_labels：每組名稱；widths：盒子寬度",
+        "body": [
+            "plt.boxplot([${1:a, b}], tick_labels=[${2:'A', 'B'}], widths=0.3)  # [資料1, 資料2]、每組名稱、盒子寬度",
+            "plt.ylabel('${3:Value}')",
+            "plt.title('${4:Title}')",
+            "plt.show()$0"
+        ]
+    },
+    "散佈圖 + 相關係數": {
+        "scope": "python",
+        "prefix": "scat",
+        "description": "散佈圖並在標題顯示相關係數 r。x：橫軸資料、y：縱軸資料；facecolors='none' 畫空心點",
+        "body": [
+            "r = pd.Series(${1:x}).corr(pd.Series(${2:y}))  # 相關係數",
+            "plt.scatter(${1:x}, ${2:y}, facecolors='none', edgecolors='black')  # 橫軸 x、縱軸 y；空心點",
+            "plt.xlabel('${3:x}')",
+            "plt.ylabel('${4:y}')",
+            "plt.title(f'${4:y} vs ${3:x} (r = {r:.3f})')",
+            "plt.show()$0"
+        ]
+    },
+    "長條圖": {
+        "scope": "python",
+        "prefix": "barc",
+        "description": "類別資料的長條圖。value_counts()：每個類別的次數（由多到少；要照類別排序加 .sort_index()）",
+        "body": [
+            "counts = pd.Series(${1:x}).value_counts()  # 每個類別的次數",
+            "plt.bar(counts.index.astype(str), counts.values, facecolor='lightgrey', edgecolor='black')  # 類別、次數",
+            "plt.ylabel('Frequency')",
+            "plt.title('${2:Title}')",
+            "plt.show()$0"
+        ]
+    },
+    "圓餅圖": {
+        "scope": "python",
+        "prefix": "piec",
+        "description": "圓餅圖。labels：類別名稱；autopct：百分比格式（'%1.1f%%' → 小數一位）；startangle=90 從 12 點鐘開始；counterclock=False 順時針",
+        "body": [
+            "counts = pd.Series(${1:x}).value_counts()",
+            "plt.pie(counts.values, labels=counts.index.astype(str), autopct='%1.1f%%', startangle=90, counterclock=False)  # 百分比到小數一位、從 12 點鐘順時針",
+            "plt.axis('equal')  # 讓圓不要變橢圓",
+            "plt.title('${2:Title}')",
+            "plt.show()$0"
+        ]
+    },
+    "二項分布": {
+        "scope": "python",
+        "prefix": "binom",
+        "description": "二項分布 Bi(n, p)。k：成功次數、n：試驗次數、p：每次成功機率。pmf：Pr(X = k)、cdf：Pr(X ≤ k)、Pr(X ≥ k) = 1 − cdf(k − 1)（要減 1！）、ppf(q)：F(x) ≥ q 的最小 x",
+        "body": [
+            "n, p = ${1:10}, ${2:0.4}  # n：試驗次數、p：每次成功機率",
+            "print('Pr(X = k)  =', round(stats.binom.pmf(k=${3:5}, n=n, p=p), 4))  # k：成功次數",
+            "print('Pr(X <= k) =', round(stats.binom.cdf(k=${4:4}, n=n, p=p), 4))",
+            "print('Pr(X >= k) =', round(1 - stats.binom.cdf(k=${5:3} - 1, n=n, p=p), 4))  # ≥ k → 1 - F(k - 1)",
+            "print('mean, var  =', stats.binom.mean(n=n, p=p), stats.binom.var(n=n, p=p))$0"
+        ]
+    },
+    "卜瓦松分布": {
+        "scope": "python",
+        "prefix": "pois",
+        "description": "卜瓦松分布 Poi(λ)。k：發生次數、mu：λ（單位時間平均次數，時間單位要跟題目一致）。Pr(X ≥ k) = 1 − cdf(k − 1)",
+        "body": [
+            "mu = ${1:4}  # λ：單位時間平均次數（例：每小時 3 次 → 20 分鐘 λ = 1）",
+            "print('Pr(X = k)  =', round(stats.poisson.pmf(k=${2:5}, mu=mu), 4))  # k：發生次數",
+            "print('Pr(X <= k) =', round(stats.poisson.cdf(k=${3:4}, mu=mu), 4))",
+            "print('Pr(X >= k) =', round(1 - stats.poisson.cdf(k=${4:3} - 1, mu=mu), 4))  # ≥ k → 1 - F(k - 1)$0"
+        ]
+    },
+    "超幾何分布": {
+        "scope": "python",
+        "prefix": "hyper",
+        "description": "超幾何分布 Hyper(N, K, n)：不放回抽樣。課本 N：母體數、K：成功數、n：抽出數；scipy 的名稱不同：M = N、n = K、N = n。k：抽到的成功數",
+        "body": [
+            "N, K, n = ${1:20}, ${2:12}, ${3:10}  # N：母體數、K：成功數、n：抽出數（scipy：M=N, n=K, N=n）",
+            "print('Pr(X = k)  =', round(stats.hypergeom.pmf(k=${4:7}, M=N, n=K, N=n), 4))  # k：抽到的成功數",
+            "print('Pr(X <= k) =', round(stats.hypergeom.cdf(k=${5:7}, M=N, n=K, N=n), 4))$0"
+        ]
+    },
+    "幾何分布": {
+        "scope": "python",
+        "prefix": "geom",
+        "description": "幾何分布 Geo(p)：第一次成功在第 k 次試驗（k = 1, 2, …）。p：每次成功機率",
+        "body": [
+            "p = ${1:0.4}  # 每次成功機率",
+            "print('Pr(X = k)  =', round(stats.geom.pmf(k=${2:5}, p=p), 4))  # k：第幾次試驗才第一次成功",
+            "print('Pr(X <= k) =', round(stats.geom.cdf(k=${3:4}, p=p), 4))$0"
+        ]
+    },
+    "均勻分布": {
+        "scope": "python",
+        "prefix": "unif",
+        "description": "均勻分布 Uni(a, b)。x：要查的值；scipy 寫法 loc = 下限 a、scale = 寬度 b − a",
+        "body": [
+            "a, b = ${1:10}, ${2:16}  # 下限、上限",
+            "print('Pr(X <= x) =', round(stats.uniform.cdf(x=${3:15}, loc=a, scale=b - a), 4))  # loc：下限、scale：寬度",
+            "print('Pr(X >= x) =', round(1 - stats.uniform.cdf(x=${4:15}, loc=a, scale=b - a), 4))$0"
+        ]
+    },
+    "指數分布": {
+        "scope": "python",
+        "prefix": "expo",
+        "description": "指數分布 Exp(λ)：等待時間。λ：發生率（每單位時間幾次）；scipy 要寫 scale = 1/λ（平均等待時間）；x 的時間單位要跟 λ 一致（例：λ 是每小時，25 分鐘寫 25/60）",
+        "body": [
+            "lam = ${1:6.6}  # λ：發生率（每單位時間幾次）",
+            "print('Pr(X <= x) =', round(stats.expon.cdf(x=${2:5 / 60}, scale=1 / lam), 4))  # x：時間長度、scale：1/λ",
+            "print('Pr(X >= x) =', round(1 - stats.expon.cdf(x=${3:25 / 60}, scale=1 / lam), 4))$0"
+        ]
+    },
+    "常態分布": {
+        "scope": "python",
+        "prefix": "norm",
+        "description": "常態分布 ND(μ, σ)。x：要查的值、loc：平均數 μ、scale：標準差 σ（不是變異數！）、ppf(q)：反查使 Pr(X ≤ x) = q 的 x",
+        "body": [
+            "mu, sigma = ${1:80}, ${2:10}  # 平均數、標準差（不是變異數）",
+            "print('Pr(X <= x)     =', round(stats.norm.cdf(x=${3:70}, loc=mu, scale=sigma), 4))",
+            "print('Pr(X >= x)     =', round(1 - stats.norm.cdf(x=${4:90}, loc=mu, scale=sigma), 4))",
+            "print('Pr(a <= X <= b) =', round(stats.norm.cdf(x=${5:90}, loc=mu, scale=sigma) - stats.norm.cdf(x=${6:70}, loc=mu, scale=sigma), 4))  # F(b) - F(a)",
+            "print('x for Pr(X <= x) = q:', round(stats.norm.ppf(q=${7:0.95}, loc=mu, scale=sigma), 4))  # q：累積機率$0"
+        ]
+    },
+    "PMF 長條圖": {
+        "scope": "python",
+        "prefix": "pmfplot",
+        "description": "離散分布的機率長條圖。xs：要畫的值（range(起點, 終點（不含）)）；pmf(xs, 參數)：各值的機率",
+        "body": [
+            "xs = list(range(${1:0}, ${2:11}))  # 要畫的值：range(起點, 終點（不含）)",
+            "plt.bar(xs, stats.${3|binom,poisson,hypergeom,geom|}.pmf(xs, ${4:n=10, p=0.4}), facecolor='lightgray', edgecolor='black')  # 分布的參數",
+            "plt.xlabel('x')",
+            "plt.ylabel('Probability')",
+            "plt.title('${5:PMF}')",
+            "plt.show()$0"
+        ]
+    },
+    "PDF 曲線": {
+        "scope": "python",
+        "prefix": "pdfplot",
+        "description": "連續分布的密度曲線。np.linspace(起點, 終點, 點數)；pdf(xs, 參數)：各點的密度（norm：loc=μ, scale=σ；expon：scale=1/λ；uniform：loc=a, scale=b−a）",
+        "body": [
+            "xs = np.linspace(${1:40}, ${2:120}, 400)  # 起點、終點、取幾個點",
+            "plt.plot(xs, stats.${3|norm,expon,uniform|}.pdf(xs, ${4:loc=80, scale=10}), color='black')  # 分布的參數",
+            "plt.xlabel('x')",
+            "plt.ylabel('Density')",
+            "plt.title('${5:PDF}')",
+            "plt.show()$0"
+        ]
+    },
+    "常態近似二項（連續校正）": {
+        "scope": "python",
+        "prefix": "normapprox",
+        "description": "二項 Bi(n, p) 用常態 ND(np, √(np(1−p))) 近似。Pr(a ≤ X ≤ b) ≈ Pr(a − 0.5 ≤ Y ≤ b + 0.5)（連續校正）",
+        "body": [
+            "n, p = ${1:50}, ${2:0.5}  # 試驗次數、成功機率",
+            "mean, sd = n * p, (n * p * (1 - p)) ** 0.5  # μ = np、σ = √(np(1-p))",
+            "a, b = ${3:25}, ${4:30}  # Pr(a <= X <= b)",
+            "print('binomial      :', round(stats.binom.cdf(k=b, n=n, p=p) - stats.binom.cdf(k=a - 1, n=n, p=p), 4))",
+            "print('normal        :', round(stats.norm.cdf(x=b, loc=mean, scale=sd) - stats.norm.cdf(x=a, loc=mean, scale=sd), 4))",
+            "print('normal (c.c.) :', round(stats.norm.cdf(x=b + 0.5, loc=mean, scale=sd) - stats.norm.cdf(x=a - 0.5, loc=mean, scale=sd), 4))  # 連續校正：±0.5$0"
+        ]
+    },
+    "sympy 求 pdf 常數 k 與期望值": {
+        "scope": "python",
+        "prefix": "sympdf",
+        "description": "自訂 pdf 求常數 k、E[X]、Var(X)。f：含 k 的 pdf；lo、hi：x 的範圍；sp.integrate(式子, (x, 下限, 上限)) 積分；sp.solve(sp.Eq(左, 右), k) 解方程式",
+        "body": [
+            "x, k = sp.symbols('x k', positive=True)",
+            "f = k * ${1:sp.exp(2 * x)}  # pdf（含常數 k）",
+            "lo, hi = ${2:1}, ${3:2}  # x 的範圍",
+            "k_val = sp.solve(sp.Eq(sp.integrate(f, (x, lo, hi)), 1), k)[0]  # 積分 = 1 解 k",
+            "f = f.subs(k, k_val)",
+            "EX = sp.integrate(x * f, (x, lo, hi))  # E[X] = ∫ x f(x) dx",
+            "VarX = sp.integrate(x ** 2 * f, (x, lo, hi)) - EX ** 2  # Var(X) = E[X²] - E[X]²",
+            "print('k =', sp.simplify(k_val), float(k_val))",
+            "print('E[X] =', sp.simplify(EX), float(EX))",
+            "print('Var(X) =', sp.simplify(VarX), float(VarX))$0"
+        ]
+    },
+    "抽樣平均數模擬": {
+        "scope": "python",
+        "prefix": "simmean",
+        "description": "抽樣平均數的分布（中央極限定理）。random.seed：固定亂數；population：母體（norm.rvs 產生）；random.sample(母體, 樣本大小)：不放回抽樣；range(次數)：重複幾次",
+        "body": [
+            "random.seed(${1:115})  # 固定亂數，結果可以重現",
+            "population = list(stats.norm.rvs(loc=${2:80}, scale=${3:4}, size=1000, random_state=1))  # 母體：平均、標準差、個數",
+            "sample_means = [statistics.mean(random.sample(population, ${4:9})) for _ in range(${5:500})]  # 樣本大小、重複次數",
+            "print('mean of sample means:', round(statistics.mean(sample_means), 4))",
+            "print('var of sample means :', round(statistics.pvariance(sample_means), 4))",
+            "plt.hist(sample_means, bins=20, facecolor='lightgrey', edgecolor='black')",
+            "plt.show()$0"
+        ]
+    },
+    "statkit 分布計算機": {
+        "scope": "python",
+        "prefix": "skexp",
+        "description": "sk.explore(分布)：互動式分布計算機。分布可填 'binom'、'poisson'、'hypergeom'、'geom'、'uniform'、'expon'、'norm'；每個參數都有說明，會產生可以貼進答案的程式碼",
+        "body": ["sk.explore(${1|'norm','binom','poisson','hypergeom','geom','uniform','expon'|})$0"]
+    },
+
+    "statkit 資料速覽": {
+        "scope": "python",
+        "prefix": "peek",
+        "description": "sk.peek(路徑, sheet=工作表名稱或編號, n=顯示幾列)：列出所有工作表、欄位型態、缺值、前幾列，並印出讀檔的程式碼；CSV 會自動試 utf-8 / cp950 編碼",
+        "body": ["df = sk.peek(\"${1:../data/檔名.xlsx}\")  # 路徑；可加 sheet='工作表名稱'、n=顯示幾列$0"]
+    },
+
+    // ======================== Markdown（markdown cell 內） ========================
+    "題目 / 作答區": {
+        "scope": "markdown",
+        "prefix": "mdq",
+        "description": "小題標題：### (a) 題目",
+        "body": ["### (${1:a}) ${2:題目}", "", "$0"]
+    },
+    "行間公式": {
+        "scope": "markdown",
+        "prefix": "mdeq",
+        "description": "獨立一行的公式區塊（$$ ... $$）；行內公式用單個 $ 包起來",
+        "body": ["$$", "${1:x}", "$$$0"]
+    },
+    "樣本平均數": { "scope": "markdown", "prefix": "mdmean", "description": "x̄：樣本平均數；n：樣本數；xᵢ：第 i 筆資料", "body": ["$\\bar{x} = \\frac{1}{n}\\sum_{i=1}^{n} x_i$$0"] },
+    "樣本變異數": { "scope": "markdown", "prefix": "mdvar", "description": "s²：樣本變異數（除以 n − 1，Bessel 校正）；x̄：樣本平均數", "body": ["$s^2 = \\frac{1}{n-1}\\sum_{i=1}^{n} (x_i - \\bar{x})^2$$0"] },
+    "母體變異數": { "scope": "markdown", "prefix": "mdpvar", "description": "σ²：母體變異數（除以 N）；μ：母體平均數；N：母體個數", "body": ["$\\sigma^2 = \\frac{1}{N}\\sum_{i=1}^{N} (x_i - \\mu)^2$$0"] },
+    "z 分數": { "scope": "markdown", "prefix": "mdz", "description": "z：標準化分數；x：資料值；μ：平均數；σ：標準差", "body": ["$z = \\frac{x - \\mu}{\\sigma}$$0"] },
+    "期望值（離散）": { "scope": "markdown", "prefix": "mdex", "description": "離散隨機變數的期望值：每個可能值 × 機率，再加總", "body": ["$E[X] = \\sum_{x} x\\,\\Pr(X = x)$$0"] },
+    "期望值（連續）": { "scope": "markdown", "prefix": "mdexc", "description": "連續隨機變數的期望值：∫ x f(x) dx，f(x) 是 pdf", "body": ["$E[X] = \\int_{-\\infty}^{\\infty} x f(x)\\,dx$$0"] },
+    "變異數公式": { "scope": "markdown", "prefix": "mdvarx", "description": "Var(X) = E[X²] − (E[X])²", "body": ["$\\operatorname{Var}(X) = E[X^2] - (E[X])^2$$0"] },
+    "二項 pmf": { "scope": "markdown", "prefix": "mdbinom", "description": "二項 pmf：n 次試驗、成功機率 p、剛好 x 次成功；C(n, x) 是組合數", "body": ["$\\Pr(X = x) = \\binom{n}{x} p^x (1-p)^{n-x}$$0"] },
+    "卜瓦松 pmf": { "scope": "markdown", "prefix": "mdpois", "description": "卜瓦松 pmf：λ 為平均次數、x 為發生次數", "body": ["$\\Pr(X = x) = \\frac{e^{-\\lambda}\\lambda^x}{x!}$$0"] },
+    "超幾何 pmf": { "scope": "markdown", "prefix": "mdhyper", "description": "超幾何 pmf：N 母體數、K 成功數、n 抽出數、x 抽到的成功數", "body": ["$\\Pr(X = x) = \\frac{\\binom{K}{x}\\binom{N-K}{n-x}}{\\binom{N}{n}}$$0"] },
+    "幾何 pmf": { "scope": "markdown", "prefix": "mdgeom", "description": "幾何 pmf：前 x − 1 次失敗、第 x 次成功；p 為成功機率", "body": ["$\\Pr(X = x) = (1-p)^{x-1} p$$0"] },
+    "指數 cdf": { "scope": "markdown", "prefix": "mdexpo", "description": "指數分布 cdf：λ 為發生率、x 為等待時間", "body": ["$F(x) = 1 - e^{-\\lambda x}$$0"] },
+    "常態 pdf": { "scope": "markdown", "prefix": "mdnorm", "description": "常態 pdf：μ 平均數、σ 標準差", "body": ["$f(x) = \\frac{1}{\\sigma\\sqrt{2\\pi}} e^{-\\frac{(x-\\mu)^2}{2\\sigma^2}}$$0"] },
+    "柴比雪夫": { "scope": "markdown", "prefix": "mdcheb", "description": "柴比雪夫定理：落在 μ ± kσ 內的機率至少 1 − 1/k²（k > 1）", "body": ["$\\Pr(|X - \\mu| \\le k\\sigma) \\ge 1 - \\frac{1}{k^2}$$0"] },
+    "相關係數": { "scope": "markdown", "prefix": "mdcorr", "description": "相關係數 r：共變異數 s_xy 除以兩個標準差的乘積，介於 −1 和 1", "body": ["$r = \\frac{s_{xy}}{s_x s_y}$$0"] },
+    "表格": {
+        "scope": "markdown",
+        "prefix": "mdtable",
+        "description": "Markdown 表格：第一列是標題、第二列 --- 是分隔線（:---: 置中、---: 靠右），之後每列一筆；用 | 分欄",
+        "body": [
+            "| ${1:項目} | ${2:數值} |",
+            "|---|---:|",
+            "| ${3:平均數} | ${4:0} |",
+            "$0"
+        ]
+    },
+    "分段函數": {
+        "scope": "markdown",
+        "prefix": "mdcases",
+        "description": "分段函數（cases）：每列「式子 & 條件」，列與列之間用 \\\\ 換行",
+        "body": [
+            "$$",
+            "f(x) = \\begin{cases}",
+            "${1:kx^2} & ${2:0 \\le x \\le 1} \\\\\\\\",
+            "0 & \\text{otherwise}",
+            "\\end{cases}",
+            "$$$0"
+        ]
+    },
+    "多行對齊": {
+        "scope": "markdown",
+        "prefix": "mdalign",
+        "description": "多行推導（aligned）：每列用 & 標出要對齊的位置（通常放在 = 前面），列尾 \\\\ 換行",
+        "body": [
+            "$$",
+            "\\begin{aligned}",
+            "${1:E[X]} &= ${2:\\int_0^1 x f(x)\\,dx} \\\\\\\\",
+            "&= ${3:\\frac{3\\}{4\\}}",
+            "\\end{aligned}",
+            "$$$0"
+        ]
+    }
+}

@@ -1,0 +1,49 @@
+{
+    // Ctrl+Shift+P →「工作: 執行工作」→ 選一個
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "新增考卷",
+            "detail": "先確認學號姓名（在下方終端機回答），再從乾淨的範本建立 exam/學號_姓名_考試名稱.ipynb 並打開",
+            "type": "process",
+            "command": "${workspaceFolder}/../__WINPY__/python/python.exe",
+            "args": ["${workspaceFolder}/tools/new_exam.py", "${input:examName}", "--open"],
+            "options": { "env": { "PYTHONUTF8": "1", "PYTHONNOUSERSITE": "1" } },
+            "presentation": { "reveal": "always", "focus": true, "panel": "dedicated", "clear": true },
+            "problemMatcher": []
+        },
+        {
+            "label": "匯出目前的 notebook 成 HTML",
+            "detail": "匯出正在編輯的 .ipynb（圖片內嵌），並檢查檔名、執行順序、錯誤，另存備份到 _backup/",
+            "type": "process",
+            "command": "${workspaceFolder}/../__WINPY__/python/python.exe",
+            "args": ["${workspaceFolder}/tools/export_html.py", "${file}"],
+            "options": { "env": { "PYTHONUTF8": "1", "PYTHONNOUSERSITE": "1" } },
+            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+            "problemMatcher": []
+        },
+        {
+            "label": "匯出目前的 notebook 成 HTML（先從頭重新執行）",
+            "detail": "等於「重新啟動 → 全部執行」後再匯出，可以確認沒有執行順序的問題（請先存檔）",
+            "type": "process",
+            "command": "${workspaceFolder}/../__WINPY__/python/python.exe",
+            "args": ["${workspaceFolder}/tools/export_html.py", "${file}", "--execute"],
+            "options": { "env": { "PYTHONUTF8": "1", "PYTHONNOUSERSITE": "1" } },
+            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+            "problemMatcher": []
+        },
+        {
+            "label": "環境檢查",
+            "detail": "套件、statkit、中文字型、HTML 匯出、AI 擴充",
+            "type": "process",
+            "command": "${workspaceFolder}/../__WINPY__/python/python.exe",
+            "args": ["${workspaceFolder}/tools/check_env.py"],
+            "options": { "env": { "PYTHONUTF8": "1", "PYTHONNOUSERSITE": "1" } },
+            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        { "id": "examName", "type": "promptString", "description": "考試名稱（例如 期中考、小考1）", "default": "期中考" }
+    ]
+}

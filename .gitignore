@@ -1,0 +1,18 @@
+build/
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+
+# 個資：複製 config/student.example.json 成 student.json 再填自己的學號姓名
+config/student.json
+
+# 講義與作業資料不進版控（打包時由 build.ps1 從本機複製）
+handouts/
+homework/
+data/
+*.pdf
+*.xlsx
+*.xls
+*.csv
+*_HW*.ipynb
+*_HW*.html

@@ -1,0 +1,12 @@
+ms-python.python
+ms-python.vscode-pylance
+ms-python.debugpy
+ms-toolsai.jupyter
+ms-toolsai.jupyter-renderers
+ms-toolsai.vscode-jupyter-cell-tags
+ms-toolsai.jupyter-keymap
+tomoki1207.pdf
+ms-ceintl.vscode-language-pack-zh-hant
+mechatroner.rainbow-csv
+formulahendry.code-runner
+GrapeCity.gc-excelviewer

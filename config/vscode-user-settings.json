@@ -1,0 +1,46 @@
+{
+    // ===== 考試規定：禁用 AI =====
+    "chat.disableAIFeatures": true,
+    "chat.commandCenter.enabled": false,
+    "github.copilot.enable": { "*": false },
+    "editor.inlineSuggest.enabled": false,
+    "workbench.settings.enableNaturalLanguageSearch": false,
+
+    // ===== 斷網環境：不檢查更新、不送遙測、不跳信任視窗 =====
+    "update.mode": "none",
+    "update.showReleaseNotes": false,
+    "extensions.autoUpdate": false,
+    "extensions.autoCheckUpdates": false,
+    "extensions.ignoreRecommendations": true,
+    "telemetry.telemetryLevel": "off",
+    "workbench.enableExperiments": false,
+    "python.experiments.enabled": false,
+    "security.workspace.trust.enabled": false,
+    "workbench.startupEditor": "none",
+    "workbench.tips.enabled": false,
+
+    // ===== 編輯體驗 =====
+    "files.autoSave": "afterDelay",
+    "files.autoSaveDelay": 1000,
+    "editor.fontSize": 15,
+    "editor.minimap.enabled": false,
+    "editor.wordWrap": "on",
+    "editor.bracketPairColorization.enabled": true,
+    "editor.suggest.preview": true,
+    "editor.snippetSuggestions": "top",
+    "[markdown]": {
+        "editor.quickSuggestions": { "other": "on", "comments": "off", "strings": "off" }
+    },
+    "files.exclude": { "**/__pycache__": true, "**/.ipynb_checkpoints": true },
+
+    // ===== Notebook =====
+    "notebook.lineNumbers": "on",
+    "notebook.output.scrolling": true,
+    "notebook.output.textLineLimit": 80,
+    "notebook.markup.fontSize": 15,
+    "notebook.diff.ignoreMetadata": true,
+    "jupyter.askForKernelRestart": false,
+    "jupyter.notebookFileRoot": "${fileDirname}",
+    "python.analysis.typeCheckingMode": "off",
+    "python.terminal.activateEnvironment": false
+}

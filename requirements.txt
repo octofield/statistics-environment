@@ -1,0 +1,22 @@
+# 作業 / 講義用到的
+numpy
+pandas
+matplotlib
+scipy
+sympy
+statsmodels
+openpyxl
+xlrd
+seaborn
+
+# notebook 環境
+jupyterlab
+notebook
+ipykernel
+ipywidgets
+nbconvert
+nbformat
+python-lsp-server
+
+# 打包時抽講義 PDF 文字
+pypdf

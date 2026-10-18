@@ -1,0 +1,46 @@
+統計學考試隨身碟環境
+====================
+
+【啟動】
+  1_啟動VSCode.bat      主力編輯器（可攜式 VS Code，已關閉所有 AI 功能），會自動打開索引
+  2_啟動JupyterLab.bat  備案（規範指定的 Jupyter Lab，會開瀏覽器；黑色視窗不要關）
+  3_匯出HTML.bat        把 .ipynb 拖到這個檔案上，或雙擊後從 exam\ 選；會檢查檔名、執行順序、錯誤，並備份到 exam\_backup\
+  4_環境檢查.bat        考前跑一次：套件、statkit、中文字型、HTML 匯出、AI 擴充
+  5_新增考卷.bat        確認學號姓名 → 輸入考試名稱 → 從乾淨的範本建立 exam\學號_姓名_名稱.ipynb 並打開
+
+  VS Code 裡也可以：Ctrl+Shift+P → 輸入「執行工作」→ 新增考卷 / 匯出目前的 notebook 成 HTML / 環境檢查
+
+【確認學號姓名】（第一次用這個隨身碟時一定要做）
+  學號姓名會用在考卷檔名（B12345678_王小明_期中考.ipynb）和考卷抬頭，錯了會影響繳交。
+  1. 雙擊 5_新增考卷.bat（或 VS Code「執行工作」→「新增考卷」，在下方終端機回答）
+  2. 畫面會顯示目前的學號、姓名，問「以上學號姓名正確嗎？(Y/n)」
+     - 正確：直接按 Enter
+     - 不正確：輸入 n，再輸入正確的學號、姓名；會存到 workspace\tools\student.json，下次就是對的
+     - 還是範例資料（B12345678 / 王小明）或空白時，會直接要求輸入
+  3. 學號格式不是「1 個英文字母 + 8 個數字」會提醒你再確認一次
+  4. 建立好之後，看一下檔名和考卷第一格的學號姓名是否正確
+  也可以直接用記事本打開 workspace\tools\student.json 修改。
+
+【資料夾】
+  workspace\00_索引.ipynb   所有資源的入口、考試流程、快捷鍵、snippets 列表、分布計算機
+  workspace\常見問題.md     遇到問題先看這裡（VS Code 開啟後按 Ctrl+Shift+V 看排版好的版本）
+  workspace\exam\           作答區；_backup\ 是每次匯出時的備份
+  workspace\data\           考試資料放這裡（先用 sk.peek('../data/檔名.xlsx') 看內容）
+  workspace\notes\          公式總表、Markdown 與 LaTeX 語法、各章速查筆記
+  workspace\handouts\       講義（_text\ 是 PDF 文字，VS Code Ctrl+Shift+F 可搜尋）
+  workspace\homework\       作業
+  workspace\docs-offline\   pandas / numpy / scipy / Python 離線文件
+  WPy64-*\                  WinPython（Python 與所有套件）
+  VSCode\                   可攜式 VS Code（設定與擴充都在 VSCode\data\）
+
+【考前演練】
+  1. 拔網路線 / 關 Wi-Fi
+  2. 從隨身碟雙擊 4_環境檢查.bat，全部 OK
+  3. 用 5_ 開一份考卷（順便確認學號姓名），在 1_（VS Code）和 2_（JupyterLab）各寫一題、匯出 HTML、用瀏覽器打開檢查
+  4. 換一台電腦（磁碟代號不同）再試一次
+
+【注意】
+  - 匯出的 HTML 用網路載入公式字型，斷網時本機預覽公式可能顯示成原始 LaTeX，上傳後正常
+  - sk.explore() 的互動畫面不會出現在 HTML 裡，請把它產生的程式碼貼到 cell 執行
+  - 第一次在新電腦上啟動會比較慢（建立字型快取），之後就快了
+  - 拔隨身碟前先關 VS Code / JupyterLab，再「安全地移除硬體」
