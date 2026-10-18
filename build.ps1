@@ -7,23 +7,37 @@
   statkit、範本、筆記、講義、作業與離線文件。完成後把整個 STAT_EXAM 資料夾複製到隨身碟。
   可以重複執行：已下載的檔案會沿用，workspace 的內容會重新複製（exam\ 與 data\ 裡你自己的檔案不會被刪）。
 
+  一般使用者請雙擊 repo 根目錄的 setup.cmd，用圖形介面精靈設定；這支腳本是精靈背後實際執行打包的程式。
+
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File build.ps1
   powershell -ExecutionPolicy Bypass -File build.ps1 -SkipDocs
+  powershell -ExecutionPolicy Bypass -File build.ps1 -Out E:\STAT_EXAM -StudentId B12345678 -StudentName 王小明 -HandoutsDir D:\講義
 #>
 param(
     [string]$Out = "$PSScriptRoot\build\STAT_EXAM",
+    [string]$StudentId,                                   # 學號姓名：寫進 workspace\tools\student.json
+    [string]$StudentName,
+    [string]$HandoutsDir = "$PSScriptRoot\handouts",      # 講義來源資料夾（沒有就略過）
+    [string]$HomeworkDir = "$PSScriptRoot\homework",      # 作業來源資料夾（沒有就略過）
     [string]$WinPyUrl = "https://github.com/winpython/winpython/releases/download/17.12.20260522/WinPython/WinPython64-3.13.15.0dot.zip",
     [string]$VSCodeUrl = "https://update.code.visualstudio.com/latest/win32-x64-archive/stable",
     [string]$FontUrl = "https://github.com/google/fonts/raw/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf",
     [switch]$SkipVSCode,
     [switch]$SkipDocs,
     [switch]$SkipCheck,
-    [switch]$NoLocalSettings      # 不同步這台電腦的 VS Code 設定，只用考試設定
+    [switch]$NoLocalSettings,     # 不同步這台電腦的 VS Code 設定，只用考試設定
+    [switch]$CleanDownloads,      # 完成後刪除下載快取（build\downloads，約 1 GB）
+    [switch]$StrictCheck          # 環境檢查沒通過時結束代碼為 1（CI 用）
 )
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+if ([Console]::IsOutputRedirected) {
+    # 被精靈導到 log 檔時用 UTF-8，中文才不會亂碼
+    [Console]::OutputEncoding = [Text.Encoding]::UTF8
+    $OutputEncoding = [Text.Encoding]::UTF8
+}
 $Repo = $PSScriptRoot
 $Dl = Join-Path $Repo "build\downloads"
 New-Item -ItemType Directory -Force $Dl, $Out | Out-Null
@@ -130,20 +144,35 @@ if (-not $SkipVSCode) {
 Step "4. workspace（程式、範本、筆記、講義、作業）"
 $Ws = Join-Path $Out "workspace"
 foreach ($d in "statkit", "tools", "notes") { Copy-Tree "$Repo\$d" "$Ws\$d" }
-# 講義與作業：放在 repo 的 handouts\、homework\（不進版控），整個資料夾複製
-foreach ($d in "handouts", "homework") {
-    if (Test-Path "$Repo\$d") { Copy-Tree "$Repo\$d" "$Ws\$d" }
-    else { Write-Warning "找不到 $d\，略過（把檔案放進 $Repo\$d 再重新打包）" }
+# 開發用的檢查工具不用帶進隨身碟
+Remove-Item -LiteralPath "$Ws\tools\ci", "$Ws\tools\validate_repo.py" -Recurse -Force -ErrorAction SilentlyContinue
+# 講義與作業：預設是 repo 的 handouts\、homework\（不進版控），也可以用 -HandoutsDir / -HomeworkDir 指定
+foreach ($pair in @(@("handouts", $HandoutsDir), @("homework", $HomeworkDir))) {
+    $name, $src = $pair
+    $what = if ($name -eq "handouts") { "講義" } else { "作業" }
+    if (-not $src) {
+        Write-Host "略過$what（沒有指定資料夾）"
+    } elseif (Test-Path -LiteralPath $src) {
+        Copy-Tree $src "$Ws\$name"
+        Write-Host "已複製$what：$src"
+    } else {
+        Write-Host "略過$what（找不到資料夾：$src）"
+    }
 }
 New-Item -ItemType Directory -Force "$Ws\exam", "$Ws\data", "$Ws\homework", "$Ws\fonts", "$Ws\.vscode", "$Ws\tools\templates" | Out-Null
 # 乾淨的考卷範本（{學號}、{姓名} 由 5_新增考卷 填入）與學生資料
 Copy-Item "$Repo\templates\exam_template.ipynb" "$Ws\tools\templates\exam_template.ipynb" -Force
-$student = "$Repo\config\student.json"
-if (-not (Test-Path $student)) {
-    Write-Warning "找不到 config\student.json，先用範本 student.example.json（考卷會是範例學號）。請複製一份改成自己的學號姓名再重新打包"
-    $student = "$Repo\config\student.example.json"
+# 學號姓名：參數 → repo 的 config\student.json → 範本（之後「新增考卷」時會再請使用者確認）
+if ($StudentId -and $StudentName) {
+    [IO.File]::WriteAllText("$Ws\tools\student.json",
+        (@{ id = $StudentId.Trim().ToUpper(); name = $StudentName.Trim() } | ConvertTo-Json), (New-Object Text.UTF8Encoding $false))
+    Write-Host "學號姓名：$($StudentId.Trim().ToUpper()) $($StudentName.Trim())"
+} elseif (Test-Path "$Repo\config\student.json") {
+    Copy-Item "$Repo\config\student.json" "$Ws\tools\student.json" -Force
+} elseif (-not (Test-Path "$Ws\tools\student.json")) {
+    Write-Host "還沒設定學號姓名，第一次「新增考卷」時會請你輸入"
+    Copy-Item "$Repo\config\student.example.json" "$Ws\tools\student.json" -Force
 }
-Copy-Item $student "$Ws\tools\student.json" -Force
 Copy-Item "$Repo\templates\00_索引.ipynb" "$Ws\00_索引.ipynb" -Force
 Copy-Item "$Repo\templates\常見問題.md" "$Ws\常見問題.md" -Force
 Copy-Item "$Repo\templates\data_README.md" "$Ws\data\README.md" -Force
@@ -151,7 +180,9 @@ foreach ($pair in @(@("vscode-workspace-settings.json", "settings.json"), @("vsc
     (Get-Content "$Repo\config\$($pair[0])" -Raw -Encoding utf8) -replace "__WINPY__", (Split-Path $WinPy -Leaf) |
         Set-Content "$Ws\.vscode\$($pair[1])" -Encoding utf8
 }
-Run $Py "$Ws\tools\extract_pdf_text.py" "$Ws\handouts"
+if (Get-ChildItem "$Ws\handouts" -Filter *.pdf -ErrorAction SilentlyContinue) {
+    Run $Py "$Ws\tools\extract_pdf_text.py" "$Ws\handouts"
+}
 
 # ------------------------------------------------------------------ 5. 字型與離線文件
 Step "5. 中文字型與離線文件"
@@ -196,9 +227,16 @@ Copy-Item "$Repo\templates\使用說明.txt" $Out -Force
 if (-not $SkipCheck) {
     Step "7. 環境檢查"
     & $Py "$Ws\tools\check_env.py"
-    if ($LASTEXITCODE -ne 0) { Write-Warning "環境檢查有項目沒通過，請看上面的輸出" }
+    $checkFailed = $LASTEXITCODE -ne 0
+    if ($checkFailed) { Write-Warning "環境檢查有項目沒通過，請看上面的輸出" }
     $global:LASTEXITCODE = 0
+}
+
+if ($CleanDownloads -and (Test-Path $Dl)) {
+    Remove-Item -LiteralPath $Dl -Recurse -Force
+    Write-Host "已刪除下載快取：$Dl"
 }
 
 $size = (Get-ChildItem $Out -Recurse -File | Measure-Object Length -Sum).Sum / 1GB
 Write-Host ("`n完成：{0}（{1:N2} GB）。把整個資料夾複製到隨身碟即可。" -f $Out, $size) -ForegroundColor Green
+if ($StrictCheck -and $checkFailed) { exit 1 }

@@ -1,0 +1,11 @@
+* text=auto
+
+# Windows 腳本：cmd 遇到 LF 換行偶爾會解析錯誤；PowerShell / Inno Setup 也統一用 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.iss text eol=crlf
+
+*.ipynb text eol=lf
+*.png binary
+*.ttf binary

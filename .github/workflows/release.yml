@@ -1,0 +1,55 @@
+name: Release
+
+# 打 tag 就會發布：git tag v1.0.0 && git push origin v1.0.0
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: 編譯 Setup.exe 並發布
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: 測試
+        run: |
+          python -m pip install -r requirements.txt
+          python -m statkit.selftest
+          python tools/validate_repo.py --fast
+
+      - name: 安裝 Inno Setup（runner 沒有內建時）
+        shell: pwsh
+        run: |
+          function Find-Iscc { Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe", "$env:ProgramFiles\Inno Setup*\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 }
+          if (-not (Find-Iscc)) { choco install innosetup -y --no-progress }
+          $iscc = Find-Iscc
+          if (-not $iscc) { throw "找不到 ISCC.exe" }
+          "ISCC=$($iscc.FullName)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          # 舊版 Inno Setup 沒有內建繁體中文時，下載官方的翻譯檔
+          if (-not (Test-Path (Join-Path $iscc.DirectoryName "Languages\ChineseTraditional.isl"))) {
+            Invoke-WebRequest "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/ChineseTraditional.isl" -OutFile setup/ChineseTraditional.isl
+          }
+
+      - name: 編譯 Setup.exe
+        shell: pwsh
+        run: '& $env:ISCC "/DAppVersion=${{ github.ref_name }}" setup\installer.iss'
+
+      - name: 建立 GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $exe = (Get-ChildItem dist\*.exe).FullName
+          gh release create "${{ github.ref_name }}" $exe --title "${{ github.ref_name }}" --generate-notes

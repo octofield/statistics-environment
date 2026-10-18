@@ -1,5 +1,13 @@
 build/
+dist/
 __pycache__/
+
+# CI / 安裝檔編譯時產生的檔案
+setup/ChineseTraditional.isl
+tools/ci/node_modules/
+tools/ci/package.json
+tools/ci/package-lock.json
+math.json
 .ipynb_checkpoints/
 *.pyc
 

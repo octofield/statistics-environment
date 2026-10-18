@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: 測試（statkit、設定檔、腳本、notebook、公式）
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: 安裝套件
+        run: python -m pip install -r requirements.txt
+
+      - name: statkit 自我測試
+        run: python -m statkit.selftest
+
+      - name: 檢查設定、snippets、PowerShell、bat，並執行所有 notebook
+        run: python tools/validate_repo.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: 用 KaTeX 檢查所有公式
+        shell: pwsh
+        run: |
+          npm install --no-save --prefix tools/ci katex@0.16.11
+          python tools/ci/extract_math.py | Out-File math.json -Encoding utf8
+          node tools/ci/check_math.js math.json
+
+  build-smoke:
+    name: 打包流程（不含 VS Code、離線文件）
+    needs: test
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: build.ps1（Windows PowerShell 5.1）
+        shell: powershell
+        run: .\build.ps1 -Out "$env:RUNNER_TEMP\STAT_EXAM" -SkipVSCode -SkipDocs -NoLocalSettings -StrictCheck
