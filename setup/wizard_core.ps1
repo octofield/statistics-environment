@@ -2,8 +2,8 @@
 
 $script:IdPattern = '^[A-Za-z]\d{8}$'
 
-# 各步驟大約佔整體時間的比例（用來算進度條；步驟 2 裝套件、3 VS Code、7 環境檢查最久）
-$script:StepWeights = @{ 1 = 5; 2 = 30; 3 = 22; 4 = 5; 5 = 13; 6 = 2; 7 = 23 }
+# 各步驟大約佔整體時間的比例（用來算進度條；build.ps1 結尾會印各步驟耗時，可以照著調整）
+$script:StepWeights = @{ 1 = 12; 2 = 22; 3 = 22; 4 = 5; 5 = 16; 6 = 3; 7 = 20 }
 
 function Get-WizardDefaults {
     param([string]$RepoRoot)
@@ -104,6 +104,13 @@ function Get-CheckResult {
     [pscustomobject]@{ Passed = $passed; FailCount = @($fails).Count; Failures = @($fails) }
 }
 
+function Get-BuiltFileCount {
+    # build.ps1 最後一行「完成：…（2.10 GB，48123 個檔案）」裡的檔案數；找不到回傳 0
+    param([string]$LogText)
+    if ($LogText -match '(?m)^完成：.*，(\d+) 個檔案）') { return [int]$Matches[1] }
+    return 0
+}
+
 function Read-NewText {
     <# 讀檔案從 $State.Pos 之後新增的內容（檔案正在被寫入也能讀）。$State 是 @{ Pos = 0 }。
        用同一個 Decoder 解碼，中文字的 UTF-8 位元組被切在兩次讀取之間也不會變亂碼。 #>
@@ -143,28 +150,35 @@ function Stop-ProcessTree([int]$ProcessId) {
 }
 
 function Start-UsbCopy {
-    <# 用 robocopy 把 STAT_EXAM 複製到隨身碟（只新增 / 更新，不會刪掉隨身碟上 exam\ 裡的考卷）#>
-    param([string]$Source, [string]$Drive, [string]$LogDir)
+    <# 用 robocopy 把 STAT_EXAM 複製到隨身碟（只新增 / 更新，不會刪掉隨身碟上 exam\ 裡的考卷）。
+       $Total 是檔案數（從 build.ps1 的輸出拿，數 5 萬個檔案很慢）；沒給才自己數 #>
+    param([string]$Source, [string]$Drive, [string]$LogDir, [int]$Total = 0)
     New-Item -ItemType Directory -Force $LogDir | Out-Null
     $dst = Join-Path ($Drive.TrimEnd('\') + '\') (Split-Path $Source -Leaf)
     $log = Join-Path $LogDir ("copy_{0}.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
-    $total = (Get-ChildItem -LiteralPath $Source -Recurse -File -Force | Measure-Object).Count
+    $total = if ($Total -gt 0) { $Total } else { (Get-ChildItem -LiteralPath $Source -Recurse -File -Force | Measure-Object).Count }
     # 不能排除 __pycache__：WinPython 裡預先編譯好的 .pyc 是讓隨身碟啟動變快的關鍵
     $argString = (ConvertTo-ArgString @($Source, $dst)) + " /E /MT:8 /R:1 /W:1 /NP /NDL /NJH /NJS " +
                  (ConvertTo-ArgString @("/UNILOG:$log"))
     $p = Start-Process -FilePath "$env:SystemRoot\System32\robocopy.exe" -ArgumentList $argString -WindowStyle Hidden -PassThru
-    [pscustomobject]@{ Process = $p; LogPath = $log; Destination = $dst; Total = $total }
+    [pscustomobject]@{ Process = $p; LogPath = $log; Destination = $dst; Total = $total; State = @{ Pos = 0; Lines = 0 } }
 }
 
 function Get-CopyProgress {
-    # /UNILOG 是 UTF-16 的 log，每複製一個檔案一行
-    param([string]$LogPath, [int]$Total)
+    <# /UNILOG 是 UTF-16 的 log，每複製一個檔案一行。$State 是 @{ Pos = 0; Lines = 0 }，
+       只讀上次之後新增的部分（每次從頭讀，log 到後面有幾萬行時介面會卡） #>
+    param([string]$LogPath, [int]$Total, [hashtable]$State)
     if (-not (Test-Path -LiteralPath $LogPath) -or $Total -le 0) { return 0 }
     $fs = [IO.File]::Open($LogPath, 'Open', 'Read', 'ReadWrite')
     try {
-        $reader = New-Object IO.StreamReader($fs, [Text.Encoding]::Unicode)
-        $lines = 0
-        while ($null -ne $reader.ReadLine()) { $lines++ }
+        $len = ($fs.Length - $State.Pos) -band -2      # UTF-16 一個字 2 bytes，只讀到偶數位置
+        if ($len -gt 0) {
+            [void]$fs.Seek($State.Pos, 'Begin')
+            $buf = New-Object byte[] $len
+            $read = $fs.Read($buf, 0, $len) -band -2
+            $State.Lines += [Text.Encoding]::Unicode.GetString($buf, 0, $read).Split("`n").Count - 1
+            $State.Pos += $read
+        }
     } finally { $fs.Dispose() }
-    return [math]::Min(100, [math]::Round($lines * 100 / $Total))
+    return [math]::Min(100, [math]::Round($State.Lines * 100 / $Total))
 }

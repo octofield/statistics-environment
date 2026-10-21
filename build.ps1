@@ -23,6 +23,7 @@ param(
     [string]$WinPyUrl = "https://github.com/winpython/winpython/releases/download/17.12.20260522/WinPython/WinPython64-3.13.15.0dot.zip",
     [string]$VSCodeUrl = "https://update.code.visualstudio.com/latest/win32-x64-archive/stable",
     [string]$FontUrl = "https://github.com/google/fonts/raw/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf",
+    [string]$UvUrl = "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip",
     [switch]$SkipVSCode,
     [switch]$SkipDocs,
     [switch]$SkipCheck,
@@ -42,15 +43,64 @@ $Repo = $PSScriptRoot
 $Dl = Join-Path $Repo "build\downloads"
 New-Item -ItemType Directory -Force $Dl, $Out | Out-Null
 
-function Step($msg) { Write-Host "`n=== $msg ===" -ForegroundColor Cyan }
+# 每一步的耗時，最後印成總表（回報「很慢」時看 log 就知道慢在哪裡）
+$StepClock = [Diagnostics.Stopwatch]::StartNew()
+$StepTimes = [ordered]@{}
+$script:CurrentStep = $null
+
+function End-Step {
+    if ($script:CurrentStep) { $StepTimes[$script:CurrentStep] = $StepClock.Elapsed }
+    $script:CurrentStep = $null
+}
+
+function Step($msg) {
+    End-Step
+    $script:CurrentStep = $msg
+    $StepClock.Restart()
+    Write-Host "`n=== $msg ===" -ForegroundColor Cyan
+}
+
+# 背景預先下載（檔名 → curl 的 Process），讓下載跟安裝套件同時進行
+$Prefetch = @{}
+trap { foreach ($p in $Prefetch.Values) { if (-not $p.HasExited) { $p.Kill() } }; break }
+
+function Get-CurlArgs($url, $out) {
+    # Windows 10 1803 起內建 curl.exe：比 Invoke-WebRequest 快，-C - 可以接著上次中斷的 .part 續傳
+    return @("-L", "--fail", "-sS", "--retry", "3", "--retry-delay", "2", "-C", "-", "-o", $out, $url)
+}
+
+function Start-Prefetch($url, $name) {
+    $path = Join-Path $Dl $name
+    if (-not $url -or (Test-Path -LiteralPath $path) -or $Prefetch[$name]) { return }
+    # Start-Process 不會幫參數加引號，路徑可能有空白
+    $argString = (Get-CurlArgs $url "$path.part" | ForEach-Object { if ($_ -match '\s') { "`"$_`"" } else { $_ } }) -join ' '
+    $p = Start-Process "$env:SystemRoot\System32\curl.exe" -ArgumentList $argString -WindowStyle Hidden -PassThru
+    $null = $p.Handle                               # 先取得 handle，結束後才讀得到 ExitCode
+    $Prefetch[$name] = $p
+}
 
 function Get-File($url, $name) {
     $path = Join-Path $Dl $name
-    if (-not (Test-Path -LiteralPath $path)) {
-        Write-Host "下載 $name ..."
-        Invoke-WebRequest $url -OutFile "$path.part"
-        Move-Item -LiteralPath "$path.part" $path
+    if (Test-Path -LiteralPath $path) { return $path }
+    $p = $Prefetch[$name]
+    if ($p) {
+        if (-not $p.HasExited) { Write-Host "等待背景下載 $name ..." }
+        $p.WaitForExit()
+        $Prefetch.Remove($name)
+        if ($p.ExitCode -eq 0) {
+            Move-Item -LiteralPath "$path.part" $path
+            return $path
+        }
     }
+    Write-Host "下載 $name ..."
+    & "$env:SystemRoot\System32\curl.exe" @(Get-CurlArgs $url "$path.part")
+    if ($LASTEXITCODE -ne 0) {
+        # curl 不會用系統的 proxy 設定，有些學校 / 公司網路要改用 Invoke-WebRequest
+        Write-Host "curl 下載失敗（exit $LASTEXITCODE），改用 Invoke-WebRequest 重新下載 $name ..."
+        $global:LASTEXITCODE = 0
+        Invoke-WebRequest $url -OutFile "$path.part"
+    }
+    Move-Item -LiteralPath "$path.part" $path -Force
     return $path
 }
 
@@ -87,6 +137,10 @@ function Expand-Zip($zip, $dst) {
 
 # ------------------------------------------------------------------ 1. WinPython
 Step "1. WinPython"
+$Ws = Join-Path $Out "workspace"
+if (-not $SkipVSCode -and -not (Test-Path "$Out\VSCode\Code.exe")) { Start-Prefetch $VSCodeUrl "vscode-win32-x64.zip" }
+Start-Prefetch $FontUrl "NotoSansTC-VF.ttf"
+Start-Prefetch $UvUrl "uv-windows.zip"
 $zip = Get-File $WinPyUrl (Split-Path $WinPyUrl -Leaf)
 if (-not (Get-ChildItem $Out -Directory -Filter "WPy64-*" -ErrorAction SilentlyContinue)) {
     Expand-Zip $zip $Out
@@ -96,11 +150,57 @@ $Py = Join-Path $WinPy "python\python.exe"
 Write-Host "WinPython：$WinPy"
 Use-PortableEnv $WinPy
 
+# 離線文件的網址（Python 文件要配合 WinPython 的版本），先開始在背景下載
+$docs = [ordered]@{}
+if (-not $SkipDocs) {
+    $pyMinor = (& $Py -c "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')").Trim()
+    # scipy 的離線文件不一定每個小版本都有，從文件首頁找目前提供的 zip
+    $scipyZip = $null
+    try {
+        $href = (Invoke-WebRequest "https://docs.scipy.org/doc/" -UseBasicParsing).Links.href |
+            Where-Object { $_ -match '^scipy/scipy-html-[\d.]+\.zip$' } | Select-Object -First 1
+        if ($href) { $scipyZip = "https://docs.scipy.org/doc/$href" }
+    } catch { }
+    $docs = [ordered]@{
+        "pandas" = "https://pandas.pydata.org/docs/pandas.zip"
+        "numpy"  = "https://numpy.org/doc/stable/numpy-html.zip"
+        "scipy"  = $scipyZip
+        "python" = "https://docs.python.org/$pyMinor/archives/python-$pyMinor-docs-html.zip"
+    }
+    foreach ($name in $docs.Keys) {
+        if (-not (Test-Path "$Ws\docs-offline\$name")) { Start-Prefetch $docs[$name] "docs-$name.zip" }
+    }
+}
+
 # ------------------------------------------------------------------ 2. 套件
 Step "2. 安裝套件"
-Run $Py -m pip install --upgrade pip --no-warn-script-location -q
-Run $Py -m pip install -r "$Repo\requirements.txt" --no-warn-script-location -q
+# uv 會平行下載、安裝，比 pip 快很多；拿不到 uv 或安裝失敗就改用 pip
+$uv = $null
+try {
+    $uvZip = Get-File $UvUrl "uv-windows.zip"
+    if (-not (Test-Path "$Dl\uv\uv.exe")) { Expand-Zip $uvZip "$Dl\uv" }
+    $uv = (Get-ChildItem "$Dl\uv" -Recurse -Filter uv.exe | Select-Object -First 1).FullName
+} catch {
+    Write-Warning "拿不到 uv（$($_.Exception.Message)），改用 pip"
+}
+$installed = $false
+if ($uv) {
+    & $uv pip install --python $Py --compile-bytecode -r "$Repo\requirements.txt"
+    $installed = $LASTEXITCODE -eq 0
+    if (-not $installed) { Write-Warning "uv 安裝失敗（exit $LASTEXITCODE），改用 pip" }
+    $global:LASTEXITCODE = 0
+}
+if (-not $installed) {
+    Run $Py -m pip install -r "$Repo\requirements.txt" --no-warn-script-location --progress-bar off
+}
 $site = (& $Py -c "import sysconfig; print(sysconfig.get_paths()['purelib'])").Trim()
+# 套件附的測試檔（加起來上萬個檔案、數百 MB）考試用不到，刪掉之後防毒掃描、複製到隨身碟都快很多
+foreach ($pkg in "numpy", "pandas", "scipy", "statsmodels", "sympy", "matplotlib", "mpl_toolkits", "seaborn", "IPython") {
+    if (Test-Path -LiteralPath "$site\$pkg") {
+        Get-ChildItem -LiteralPath "$site\$pkg" -Directory -Recurse -Filter tests -ErrorAction SilentlyContinue |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
 # 讓任何位置的 notebook 都能 import statkit（相對於 python.exe 的路徑，換磁碟代號也沒問題）
 Set-Content -LiteralPath "$site\statkit_workspace.pth" -Encoding ascii -Value `
     "import os, sys; sys.path.append(os.path.normpath(os.path.join(os.path.dirname(sys.executable), '..', '..', 'workspace')))"
@@ -108,7 +208,8 @@ $labSettings = Join-Path $WinPy "python\share\jupyter\lab\settings"
 New-Item -ItemType Directory -Force $labSettings | Out-Null
 Copy-Item "$Repo\config\jupyterlab-overrides.json" "$labSettings\overrides.json" -Force
 Write-Host "預先編譯 .pyc（加快隨身碟上的啟動速度）..."
-& $Py -m compileall -q -j 0 "$WinPy\python\Lib" *> $null
+# site-packages 在安裝時已經編譯過（uv --compile-bytecode / pip 預設），這裡只補標準函式庫
+& $Py -m compileall -q -j 0 -x "site-packages" "$WinPy\python\Lib" *> $null
 $global:LASTEXITCODE = 0
 
 # ------------------------------------------------------------------ 3. VS Code
@@ -129,12 +230,14 @@ if (-not $SkipVSCode) {
     $syncArgs = @("$Repo\tools\sync_vscode_settings.py", "--vscode-data", "$vsDir\data", "--config", "$Repo\config")
     if ($NoLocalSettings) { $syncArgs += "--no-local" }
     Run $Py @syncArgs
-    $installed = (& "$vsDir\bin\code.cmd" --list-extensions) -join "`n"
-    foreach ($ext in Get-Content "$Repo\config\extensions.txt" | Where-Object { $_.Trim() }) {
-        if ($installed -notmatch [regex]::Escape($ext)) {
-            Write-Host "安裝擴充 $ext"
-            Run "$vsDir\bin\code.cmd" --install-extension $ext --force
-        }
+    $installedExt = (& "$vsDir\bin\code.cmd" --list-extensions) -join "`n"
+    $missing = @(Get-Content "$Repo\config\extensions.txt" | ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -and $installedExt -notmatch [regex]::Escape($_) })
+    if ($missing) {
+        # 一次裝完：每呼叫一次 code.cmd 就要冷啟動一次 VS Code
+        Write-Host "安裝擴充：$($missing -join ', ')"
+        $extArgs = $missing | ForEach-Object { "--install-extension", $_ }
+        Run "$vsDir\bin\code.cmd" @extArgs --force
     }
     # 語言包快取（啟動器每次啟動前也會依目前的磁碟代號重建，第一次啟動就是中文）
     Run $Py "$Repo\tools\vscode_locale.py" "$vsDir\data"
@@ -142,7 +245,6 @@ if (-not $SkipVSCode) {
 
 # ------------------------------------------------------------------ 4. workspace
 Step "4. workspace（程式、範本、筆記、講義、作業）"
-$Ws = Join-Path $Out "workspace"
 foreach ($d in "statkit", "tools", "notes") { Copy-Tree "$Repo\$d" "$Ws\$d" }
 # 開發用的檢查工具不用帶進隨身碟
 Remove-Item -LiteralPath "$Ws\tools\ci", "$Ws\tools\validate_repo.py" -Recurse -Force -ErrorAction SilentlyContinue
@@ -189,20 +291,6 @@ Step "5. 中文字型與離線文件"
 $font = Get-File $FontUrl "NotoSansTC-VF.ttf"
 Copy-Item -LiteralPath $font "$Ws\fonts\NotoSansTC-VF.ttf" -Force
 if (-not $SkipDocs) {
-    $pyMinor = (& $Py -c "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')").Trim()
-    # scipy 的離線文件不一定每個小版本都有，從文件首頁找目前提供的 zip
-    $scipyZip = $null
-    try {
-        $href = (Invoke-WebRequest "https://docs.scipy.org/doc/" -UseBasicParsing).Links.href |
-            Where-Object { $_ -match '^scipy/scipy-html-[\d.]+\.zip$' } | Select-Object -First 1
-        if ($href) { $scipyZip = "https://docs.scipy.org/doc/$href" }
-    } catch { }
-    $docs = [ordered]@{
-        "pandas" = "https://pandas.pydata.org/docs/pandas.zip"
-        "numpy"  = "https://numpy.org/doc/stable/numpy-html.zip"
-        "scipy"  = $scipyZip
-        "python" = "https://docs.python.org/$pyMinor/archives/python-$pyMinor-docs-html.zip"
-    }
     foreach ($name in $docs.Keys) {
         $dst = "$Ws\docs-offline\$name"
         if (Test-Path $dst) { continue }
@@ -237,6 +325,14 @@ if ($CleanDownloads -and (Test-Path $Dl)) {
     Write-Host "已刪除下載快取：$Dl"
 }
 
-$size = (Get-ChildItem $Out -Recurse -File | Measure-Object Length -Sum).Sum / 1GB
-Write-Host ("`n完成：{0}（{1:N2} GB）。把整個資料夾複製到隨身碟即可。" -f $Out, $size) -ForegroundColor Green
+End-Step
+Write-Host "`n各步驟耗時："
+foreach ($k in $StepTimes.Keys) {
+    $t = $StepTimes[$k]
+    Write-Host ("  {0,3}:{1:00}  {2}" -f [int][math]::Floor($t.TotalMinutes), $t.Seconds, $k)
+}
+
+# 檔案數也印出來：精靈複製到隨身碟時用來算進度，不用再數一次
+$files = Get-ChildItem $Out -Recurse -File -Force | Measure-Object Length -Sum
+Write-Host ("`n完成：{0}（{1:N2} GB，{2} 個檔案）。把整個資料夾複製到隨身碟即可。" -f $Out, ($files.Sum / 1GB), $files.Count) -ForegroundColor Green
 if ($StrictCheck -and $checkFailed) { exit 1 }

@@ -57,7 +57,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1 -Out D:\STAT_EXAM -StudentId 
 1. **歡迎**：說明與考試規定提醒
 2. **學號姓名**：用在考卷檔名和抬頭（可以先略過）
 3. **講義與作業**（選填）：選你自己的資料夾，只會複製到你的電腦和隨身碟；講義 PDF 會轉成文字，方便在 VS Code 搜尋
-4. **選項**：建立位置、離線文件、同步 VS Code 設定（AI 相關設定一律排除）、刪除下載快取、複製到隨身碟
+4. **選項**：建立位置、離線文件（多約 2 萬個檔案，要複製到隨身碟的話會久很多）、同步 VS Code 設定（AI 相關設定一律排除）、刪除下載快取、複製到隨身碟
 5. **確認** → 6. **建立**（顯示進度，可以停止，下次會接著做）→ 7. **完成**（環境檢查結果、使用說明、紀錄檔）
 
 ### 系統需求
@@ -94,6 +94,7 @@ STAT_EXAM/
 | 防毒軟體攔截 | 少數防毒會誤判下載程式的 PowerShell 腳本。可以暫時允許，或改用方法 B 自己看過腳本再執行 |
 | 下載到一半失敗 / 停止 | 直接再執行一次精靈，已下載的檔案會沿用 |
 | 精靈說建立失敗 | 按「開啟紀錄檔」看最後幾行；常見原因是網路中斷、磁碟空間不足 |
+| 覺得太慢 | 紀錄檔最後有「各步驟耗時」，回報時附上；複製到隨身碟最花時間的是檔案數量，不需要離線文件就取消勾選 |
 | 學校 / 公司網路有 proxy | 換到一般網路（例如手機熱點）再執行 |
 | 想更新環境 | 選同一個建立位置再跑一次精靈；`exam\` 裡的考卷不會被刪 |
 
@@ -103,7 +104,7 @@ STAT_EXAM/
 
 - 這個 repo **只有程式碼與自己寫的筆記**。講義、作業屬於授課老師或你自己，**不包含**在 repo 裡，也請不要上傳到公開的地方
 - `config/student.json`（你的學號姓名）、`handouts/`、`homework/` 都在 `.gitignore` 裡
-- 精靈不會上傳任何東西；它只會從官方網站下載 WinPython、VS Code、Python 套件、字型與文件
+- 精靈不會上傳任何東西；它只會從官方網站下載 WinPython、VS Code、uv、Python 套件、字型與文件
 
 ## 開發
 
@@ -142,7 +143,7 @@ git push origin v1.0.0
 
 精靈在**使用者的電腦上**從官方來源下載以下軟體，本 repo 不轉散布：
 
-- [WinPython](https://winpython.github.io/)（MIT）與 Python 套件（各自的授權，見建立後的 `workspace\tools\requirements-lock.txt`）
+- [WinPython](https://winpython.github.io/)（MIT）與 Python 套件（用 [uv](https://github.com/astral-sh/uv)（MIT / Apache-2.0）安裝，只在建立時使用，不會放進隨身碟）（各自的授權，見建立後的 `workspace\tools\requirements-lock.txt`）
 - [Visual Studio Code](https://code.visualstudio.com/)（[Microsoft 軟體授權](https://code.visualstudio.com/license)）與擴充功能
 - [Noto Sans TC](https://fonts.google.com/noto/specimen/Noto+Sans+TC)（SIL Open Font License）
 - pandas、NumPy、SciPy、Python 官方文件（各自的授權）

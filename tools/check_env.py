@@ -3,11 +3,14 @@
 由 4_環境檢查.bat 執行；也可以直接 python tools/check_env.py。
 """
 import importlib
+import os
 import shutil
 import socket
 import sys
 import tempfile
 import warnings
+from concurrent.futures import ProcessPoolExecutor
+from itertools import repeat
 from pathlib import Path
 
 WORKSPACE = Path(__file__).resolve().parent.parent
@@ -64,30 +67,42 @@ def check_font():
     report(bool(font) and not missing, "中文字型", font or "找不到中文字型")
 
 
+def export_notebook(nb_path, out_dir):
+    """執行一本 notebook 並匯出 HTML，回傳 (ok, 名稱, 說明)。在子程序裡跑，所以不直接 report。"""
+    import nbformat
+    from nbconvert import HTMLExporter
+    from nbconvert.preprocessors import ExecutePreprocessor
+    name = f"執行並匯出 {nb_path.relative_to(WORKSPACE)}"
+    try:
+        nb = nbformat.read(nb_path, as_version=4)
+        ExecutePreprocessor(timeout=180, kernel_name="python3").preprocess(
+            nb, {"metadata": {"path": str(nb_path.parent)}})
+        body, _ = HTMLExporter(embed_images=True).from_notebook_node(nb)
+        (out_dir / (nb_path.stem + ".html")).write_text(body, encoding="utf-8")
+        return True, name, f"{len(body) // 1024} KB"
+    except Exception as e:
+        return False, name, (str(e).splitlines() or [repr(e)])[0][:200]
+
+
 def check_export():
     try:
-        import nbformat
-        from nbconvert import HTMLExporter
-        from nbconvert.preprocessors import ExecutePreprocessor
+        import nbformat  # noqa: F401
+        from nbconvert import HTMLExporter  # noqa: F401
+        from nbconvert.preprocessors import ExecutePreprocessor  # noqa: F401
     except Exception as e:
         report(False, "nbconvert", repr(e))
         return
     targets = [WORKSPACE / "00_索引.ipynb", WORKSPACE / "tools" / "templates" / "exam_template.ipynb",
                *sorted((WORKSPACE / "notes").glob("*.ipynb"))]
-    out_dir = Path(tempfile.mkdtemp(prefix="statexam_"))
     for nb_path in targets:
         if not nb_path.exists():
             report(False, f"執行並匯出 {nb_path.name}", "找不到檔案")
-            continue
-        try:
-            nb = nbformat.read(nb_path, as_version=4)
-            ExecutePreprocessor(timeout=180, kernel_name="python3").preprocess(
-                nb, {"metadata": {"path": str(nb_path.parent)}})
-            body, _ = HTMLExporter(embed_images=True).from_notebook_node(nb)
-            (out_dir / (nb_path.stem + ".html")).write_text(body, encoding="utf-8")
-            report(True, f"執行並匯出 {nb_path.relative_to(WORKSPACE)}", f"{len(body) // 1024} KB")
-        except Exception as e:
-            report(False, f"執行並匯出 {nb_path.relative_to(WORKSPACE)}", str(e).splitlines()[0][:200])
+    targets = [p for p in targets if p.exists()]
+    out_dir = Path(tempfile.mkdtemp(prefix="statexam_"))
+    # 每本 notebook 都要開一個 kernel、等它執行完，同時跑幾本會快很多；結果照原本的順序印
+    with ProcessPoolExecutor(max_workers=max(1, min(4, os.cpu_count() or 1, len(targets)))) as pool:
+        for ok, name, detail in pool.map(export_notebook, targets, repeat(out_dir)):
+            report(ok, name, detail)
     shutil.rmtree(out_dir, ignore_errors=True)
 
 

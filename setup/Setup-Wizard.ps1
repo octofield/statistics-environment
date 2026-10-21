@@ -191,7 +191,7 @@ Add-Label $pOpts "建立位置" 0 3 90 26 $FB | Out-Null
 $txtOut = Add-TextBox $pOpts $S.Out 94 0 530
 $btnOut = Add-Button $pOpts "瀏覽…" 634 -2 90
 $lblOut = Add-Label $pOpts "" 94 32 630 22 $FS $Muted
-$chkDocs = Add-CheckBox $pOpts "下載離線文件（pandas / numpy / scipy / Python 官方文件，+0.65 GB、約 2 萬個檔案）" 0 64 732 28 $S.Docs
+$chkDocs = Add-CheckBox $pOpts "下載離線文件（pandas / numpy / scipy / Python；+0.65 GB、約 2 萬個檔案，複製到隨身碟會久很多）" 0 64 732 28 $S.Docs
 $vsText = if ($D.HasLocalVSCode) { "同步這台電腦的 VS Code 設定（字體大小、快捷鍵、介面語言…；AI 相關設定一律排除）" } else { "同步這台電腦的 VS Code 設定（這台電腦沒有安裝 VS Code，無法同步）" }
 $chkSync = Add-CheckBox $pOpts $vsText 0 96 732 28 ($S.SyncVSCode -and $D.HasLocalVSCode)
 $chkSync.Enabled = $D.HasLocalVSCode
@@ -381,9 +381,9 @@ function Start-Build {
 function Start-Copy {
     $S.Status = "copying"
     $lblStep.Text = "複製到隨身碟 $($S.UsbDrive)"
-    $lblStatus.Text = "正在計算檔案數量…"
-    [Windows.Forms.Application]::DoEvents()
-    $S.Copy = Start-UsbCopy $S.Out $S.UsbDrive $D.LogDir
+    $total = Get-BuiltFileCount $S.Log
+    if ($total -le 0) { $lblStatus.Text = "正在計算檔案數量…"; [Windows.Forms.Application]::DoEvents() }
+    $S.Copy = Start-UsbCopy $S.Out $S.UsbDrive $D.LogDir $total
     $null = $S.Copy.Process.Handle
     Add-LogText "`n> robocopy → $($S.Copy.Destination)（$($S.Copy.Total) 個檔案）`n"
 }
@@ -446,7 +446,8 @@ function Update-Progress {
         $p = Get-BuildProgress $S.Log -MaxPercent $(if ($S.CopyUsb) { 85 } else { 100 })
         if ($p.Step -gt 0) { $lblStep.Text = "步驟 $($p.Step) / 7：$($p.Title)" }
         $bar.Value = [math]::Max($bar.Value, [math]::Min(100, $p.Percent))
-        $lastLine = ($S.Log -split "`r?`n" | Where-Object { $_.Trim() -and $_ -notmatch '^===' } | Select-Object -Last 1)
+        # 狀態列顯示最新的一行（uv / curl 的訊息在 stderr，所以兩邊都看）
+        $lastLine = (($new + "`n" + $err) -split "`r?`n" | Where-Object { $_.Trim() -and $_ -notmatch '^===' } | Select-Object -Last 1)
         if ($lastLine) { $lblStatus.Text = $lastLine.Trim() }
         if ($S.Job.Process.HasExited) {
             Start-Sleep -Milliseconds 300
@@ -458,7 +459,7 @@ function Update-Progress {
             if ($S.CopyUsb) { Start-Copy } else { $bar.Value = 100; Finish-Wizard "done" }
         }
     } elseif ($S.Status -eq "copying") {
-        $pct = Get-CopyProgress $S.Copy.LogPath $S.Copy.Total
+        $pct = Get-CopyProgress $S.Copy.LogPath $S.Copy.Total $S.Copy.State
         $bar.Value = [math]::Min(100, 85 + [math]::Round($pct * 15 / 100))
         $lblStatus.Text = "已複製約 $pct%（共 $($S.Copy.Total) 個檔案，隨身碟比較慢，請耐心等候）"
         if ($S.Copy.Process.HasExited) {
