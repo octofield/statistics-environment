@@ -20,10 +20,11 @@ param(
     [string]$StudentName,
     [string]$HandoutsDir = "$PSScriptRoot\handouts",      # 講義來源資料夾（沒有就略過）
     [string]$HomeworkDir = "$PSScriptRoot\homework",      # 作業來源資料夾（沒有就略過）
-    [string]$WinPyUrl = "https://github.com/winpython/winpython/releases/download/17.12.20260522/WinPython/WinPython64-3.13.15.0dot.zip",
-    [string]$VSCodeUrl = "https://update.code.visualstudio.com/latest/win32-x64-archive/stable",
-    [string]$FontUrl = "https://github.com/google/fonts/raw/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf",
-    [string]$UvUrl = "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip",
+    # 下載網址的預設值在 config\sources.json（跟 Mac 版的 setup\build_mac.py 共用）
+    [string]$WinPyUrl = (Get-Content -Raw -Encoding utf8 "$PSScriptRoot\config\sources.json" | ConvertFrom-Json).winpython,
+    [string]$VSCodeUrl = (Get-Content -Raw -Encoding utf8 "$PSScriptRoot\config\sources.json" | ConvertFrom-Json).vscode_win,
+    [string]$FontUrl = (Get-Content -Raw -Encoding utf8 "$PSScriptRoot\config\sources.json" | ConvertFrom-Json).font,
+    [string]$UvUrl = (Get-Content -Raw -Encoding utf8 "$PSScriptRoot\config\sources.json" | ConvertFrom-Json).uv_windows,
     [switch]$SkipVSCode,
     [switch]$SkipDocs,
     [switch]$SkipCheck,
@@ -154,18 +155,19 @@ Use-PortableEnv $WinPy
 $docs = [ordered]@{}
 if (-not $SkipDocs) {
     $pyMinor = (& $Py -c "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')").Trim()
+    $src = Get-Content -Raw -Encoding utf8 "$Repo\config\sources.json" | ConvertFrom-Json
     # scipy 的離線文件不一定每個小版本都有，從文件首頁找目前提供的 zip
     $scipyZip = $null
     try {
-        $href = (Invoke-WebRequest "https://docs.scipy.org/doc/" -UseBasicParsing).Links.href |
+        $href = (Invoke-WebRequest $src.docs_scipy_index -UseBasicParsing).Links.href |
             Where-Object { $_ -match '^scipy/scipy-html-[\d.]+\.zip$' } | Select-Object -First 1
-        if ($href) { $scipyZip = "https://docs.scipy.org/doc/$href" }
+        if ($href) { $scipyZip = $src.docs_scipy_index + $href }
     } catch { }
     $docs = [ordered]@{
-        "pandas" = "https://pandas.pydata.org/docs/pandas.zip"
-        "numpy"  = "https://numpy.org/doc/stable/numpy-html.zip"
+        "pandas" = $src.docs_pandas
+        "numpy"  = $src.docs_numpy
         "scipy"  = $scipyZip
-        "python" = "https://docs.python.org/$pyMinor/archives/python-$pyMinor-docs-html.zip"
+        "python" = $src.docs_python -replace '\{minor\}', $pyMinor
     }
     foreach ($name in $docs.Keys) {
         if (-not (Test-Path "$Ws\docs-offline\$name")) { Start-Prefetch $docs[$name] "docs-$name.zip" }

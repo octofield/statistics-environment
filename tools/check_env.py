@@ -116,6 +116,11 @@ def check_ai_extensions():
     found = [p.name for d in ext_dirs if d.is_dir() for p in d.iterdir()
              if p.is_dir() and any(w in p.name.lower() for w in AI_WORDS)]
     report(not found, "VS Code 沒有 AI 擴充", ", ".join(found) if found else "")
+    # 在 Mac 上建立的環境：擴充應該已經由 finish_setup.py 裝好
+    pending = vs_dir / "data" / "pending-vsix"
+    if pending.is_dir():
+        report(not any(pending.glob("*.vsix")), "VS Code 擴充已安裝",
+               "還有沒裝好的 .vsix，請執行 1_啟動VSCode.bat 或再跑一次環境檢查")
 
     settings_path = vs_dir / "data" / "user-data" / "User" / "settings.json"
     if settings_path.is_file():

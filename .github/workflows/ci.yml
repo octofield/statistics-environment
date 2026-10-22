@@ -51,3 +51,59 @@ jobs:
       - name: build.ps1（Windows PowerShell 5.1）
         shell: powershell
         run: .\build.ps1 -Out "$env:RUNNER_TEMP\STAT_EXAM" -SkipVSCode -SkipDocs -NoLocalSettings -StrictCheck
+
+  mac-build:
+    name: 在 Mac 上建立（不含離線文件）
+    needs: test
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup_mac.command（帶參數，不問問題）
+        run: ./setup_mac.command --out "$RUNNER_TEMP/STAT_EXAM" --skip-docs
+
+      - name: 打包成 tar（幾萬個小檔案直接上傳太慢）
+        run: tar -czf "$RUNNER_TEMP/stat_exam.tar.gz" -C "$RUNNER_TEMP" STAT_EXAM
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stat-exam-mac
+          path: ${{ runner.temp }}/stat_exam.tar.gz
+          compression-level: 0
+          retention-days: 3
+
+  mac-build-verify:
+    name: Mac 建立的環境在 Windows 上檢查
+    needs: mac-build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: stat-exam-mac
+          path: ${{ runner.temp }}
+
+      - name: 解壓縮
+        shell: pwsh
+        run: tar -xzf "$env:RUNNER_TEMP\stat_exam.tar.gz" -C "$env:RUNNER_TEMP"
+
+      - name: 安裝 VS Code 擴充（finish_setup）並跑環境檢查
+        shell: cmd
+        run: |
+          call "%RUNNER_TEMP%\STAT_EXAM\workspace\tools\env.bat" || exit /b 1
+          "%PYTHON%" "%RUNNER_TEMP%\STAT_EXAM\workspace\tools\finish_setup.py" || exit /b 1
+          "%PYTHON%" "%RUNNER_TEMP%\STAT_EXAM\workspace\tools\check_env.py" || exit /b 1
+          "%PYTHON%" -m jupyterlab --version || exit /b 1
+
+      - name: 確認擴充都裝好了
+        shell: pwsh
+        run: |
+          $data = "$env:RUNNER_TEMP\STAT_EXAM\VSCode\data"
+          if (Test-Path "$data\pending-vsix") { throw "pending-vsix 還在，擴充沒有裝完" }
+          $ids = (Get-Content -Raw "$data\extensions\extensions.json" | ConvertFrom-Json).identifier.id
+          $missing = Get-Content config\extensions.txt | Where-Object { $_.Trim() -and $ids -notcontains $_.Trim() }
+          if ($missing) { throw "沒有裝到：$($missing -join ', ')" }
+          if (-not (Test-Path "$data\user-data\languagepacks.json")) { throw "沒有產生語言包快取" }
+          "已安裝 $($ids.Count) 個擴充"

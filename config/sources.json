@@ -1,0 +1,13 @@
+{
+  "_comment": "build.ps1（Windows）與 setup/build_mac.py（Mac）共用的下載網址；更新版本只要改這裡",
+  "winpython": "https://github.com/winpython/winpython/releases/download/17.12.20260522/WinPython/WinPython64-3.13.15.0dot.zip",
+  "vscode_win": "https://update.code.visualstudio.com/latest/win32-x64-archive/stable",
+  "font": "https://github.com/google/fonts/raw/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf",
+  "uv_windows": "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip",
+  "uv_mac_arm64": "https://github.com/astral-sh/uv/releases/latest/download/uv-aarch64-apple-darwin.tar.gz",
+  "uv_mac_x64": "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-apple-darwin.tar.gz",
+  "docs_pandas": "https://pandas.pydata.org/docs/pandas.zip",
+  "docs_numpy": "https://numpy.org/doc/stable/numpy-html.zip",
+  "docs_scipy_index": "https://docs.scipy.org/doc/",
+  "docs_python": "https://docs.python.org/{minor}/archives/python-{minor}-docs-html.zip"
+}

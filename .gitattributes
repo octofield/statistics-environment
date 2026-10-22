@@ -6,6 +6,10 @@
 *.ps1 text eol=crlf
 *.iss text eol=crlf
 
+# Mac 腳本：bash 遇到 CRLF 會出錯
+*.command text eol=lf
+*.sh text eol=lf
+
 *.ipynb text eol=lf
 *.png binary
 *.ttf binary

@@ -32,7 +32,21 @@
 1. 本頁上方「**Code** → **Download ZIP**」，解壓縮
 2. 雙擊 **`setup.cmd`**
 
-### 方法 C：git clone（進階 / 開發）
+### 方法 C：用 Mac 做隨身碟
+
+只有 Mac 也可以做出**給 Windows 考場用**的隨身碟（內容跟 Windows 版一樣；這不是在 Mac 上考試用的環境）。
+
+1. 本頁上方「**Code** → **Download ZIP**」，解壓縮
+2. 雙擊 **`setup_mac.command`**。如果出現「無法打開，因為它來自未識別的開發者」，請在 Finder 對它按右鍵 →「**打開**」；或打開「終端機」，輸入 `bash ` 再把檔案拖進去，按 Enter
+3. 照終端機的問題回答（學號姓名、講義與作業、離線文件、建立位置、要不要複製到隨身碟）
+4. **把隨身碟插到任何一台 Windows 電腦，執行一次 `4_環境檢查.bat`**。第一次執行會安裝 VS Code 擴充（不需要網路，約 1 分鐘），並確認環境在 Windows 上都能用
+
+注意：
+- 隨身碟要是 **ExFAT**（或 FAT32）格式，Windows 才讀得到。Mac 格式（APFS、Mac OS 擴充格式）的隨身碟，精靈會停下來提醒你；請用「磁碟工具程式」把它清除成 ExFAT（會刪掉隨身碟上所有資料）
+- Mac 版不會同步這台 Mac 的 VS Code 設定（Mac 的快捷鍵、字型在 Windows 上不適用），只用考試設定
+- 不需要先安裝 Python：精靈會自己下載 [uv](https://github.com/astral-sh/uv)，再用它下載 Python，都放在 `build/downloads` 和 uv 的快取裡，不會改系統設定
+
+### 方法 D：git clone（進階 / 開發）
 
 ```powershell
 git clone <這個 repo 的網址>
@@ -62,7 +76,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1 -Out D:\STAT_EXAM -StudentId 
 
 ### 系統需求
 
-- Windows 10（1803 以後）或 Windows 11，64 位元
+- Windows 10（1803 以後）或 Windows 11，64 位元；或 macOS（用 `setup_mac.command` 建立，做出來的隨身碟一樣是給 Windows 用）
 - 建立時需要網路：下載約 1 GB，所有軟體都從官方網站下載
 - 硬碟空間約 3–4 GB；隨身碟建議 8 GB 以上（建立後約 2–2.7 GB、5–7 萬個檔案，USB 3.0 比較快）
 - 15–40 分鐘（依網路速度）；不需要系統管理員權限，也不會改系統設定
@@ -111,6 +125,8 @@ STAT_EXAM/
 | 路徑 | 內容 |
 |---|---|
 | `setup.cmd`、`setup/` | 精靈入口、圖形介面（`Setup-Wizard.ps1`）、邏輯（`wizard_core.ps1`）、Inno Setup 安裝檔設定（`installer.iss`） |
+| `setup_mac.command`、`setup/build_mac.py` | Mac 版入口與打包（產生跟 `build.ps1` 一樣的 Windows 環境；VS Code 擴充由 `tools/finish_setup.py` 第一次在 Windows 上執行時安裝） |
+| `config/sources.json` | 下載網址（Windows 與 Mac 共用） |
 | `build.ps1` | 實際打包的腳本（精靈在背景執行它） |
 | `statkit/` | 工具函式庫；`python -m statkit.selftest` 跟講義、作業答案比對 |
 | `notes/`、`templates/` | 筆記、考卷範本（`{學號}` `{姓名}` `{考試名稱}` 佔位）、索引、常見問題、使用說明 |
@@ -130,6 +146,7 @@ python tools/ci/extract_math.py > math.json; node tools/ci/check_math.js math.js
 **修改時要注意**：
 - `.ps1` 要存成 **UTF-8 with BOM**（Windows PowerShell 5.1 才讀得懂中文）
 - `.bat` / `.cmd` 只能用 **ASCII**（cmd 會把中文切錯位）
+- `.command` / `.sh` 要用 **LF** 換行（bash 遇到 CRLF 會出錯），在 macOS 內建的 bash 3.2 上也要能跑
 - 換行由 `.gitattributes` 處理
 
 **發布**：打 tag 就會自動編譯 Setup.exe 並建立 Release。

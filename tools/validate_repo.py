@@ -7,9 +7,11 @@
 - config/ 的 JSONC 設定、tasks、snippets 都能解析；Python snippets 填入預設值後語法正確
 - .ps1：有 UTF-8 BOM（Windows PowerShell 5.1 讀中文需要）、PowerShell 語法正確
 - .bat / .cmd：只能有 ASCII（cmd 會把多位元組字元切錯位）、CRLF 換行
+- .command / .sh：LF 換行、bash 語法正確；setup/、tools/ 的 Python 語法正確
 - notes/、templates/ 的 notebook 都能從頭執行
 """
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -74,6 +76,19 @@ def check_scripts():
             fail(p, "含有非 ASCII 字元（cmd 會解析錯誤，請改成英文）")
         if re.search(rb"(?<!\r)\n", data):
             fail(p, "不是 CRLF 換行（.gitattributes 應該會自動處理，請重新 checkout）")
+    bash = shutil.which("bash")
+    for p in files("*.command", "*.sh"):
+        if b"\r\n" in p.read_bytes():
+            fail(p, "不是 LF 換行（bash 遇到 CRLF 會出錯；.gitattributes 應該會自動處理，請重新 checkout）")
+        elif bash:
+            r = subprocess.run([bash, "-n", str(p)], capture_output=True, text=True, encoding="utf-8", errors="replace")
+            if r.returncode != 0:
+                fail(p, f"bash 語法錯誤：{r.stderr.strip()[:300]}")
+    for p in files("setup/*.py", "tools/*.py"):
+        try:
+            compile(p.read_text(encoding="utf-8"), str(p), "exec")
+        except SyntaxError as e:
+            fail(p, f"Python 語法錯誤：{e}")
 
 
 def check_notebooks():

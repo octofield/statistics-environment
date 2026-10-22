@@ -1,6 +1,8 @@
 @echo off
 rem Start portable VS Code (AI features disabled). ASCII-only on purpose.
 call "%~dp0workspace\tools\env.bat" || (pause & exit /b 1)
+rem Built on a Mac: install the bundled VS Code extensions (offline) on the first run
+"%PYTHON%" "%STAT_ROOT%\workspace\tools\finish_setup.py"
 rem If inherited (e.g. started from another VS Code), this makes Code.exe run as plain Node and exit
 set "ELECTRON_RUN_AS_NODE="
 rem Rebuild the language pack cache with the current drive letter, so the UI is Chinese on the first start
