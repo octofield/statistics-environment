@@ -21,7 +21,7 @@ jobs:
           cache: pip
 
       - name: 安裝套件
-        run: python -m pip install -r requirements.txt
+        run: python -m pip install -r requirements.txt -r requirements-jupyterlab.txt
 
       - name: statkit 自我測試
         run: python -m statkit.selftest
@@ -51,6 +51,22 @@ jobs:
       - name: build.ps1（Windows PowerShell 5.1）
         shell: powershell
         run: .\build.ps1 -Out "$env:RUNNER_TEMP\STAT_EXAM" -SkipVSCode -SkipDocs -NoLocalSettings -StrictCheck
+
+      - name: 搬到別的資料夾後執行 jupyter / pylsp（模擬複製到隨身碟；uv 產生的執行檔在這裡會壞）
+        shell: cmd
+        run: |
+          move "%RUNNER_TEMP%\STAT_EXAM" "%RUNNER_TEMP%\STAT_EXAM_moved" || exit /b 1
+          call "%RUNNER_TEMP%\STAT_EXAM_moved\workspace\tools\env.bat" || exit /b 1
+          "%PYTHON%" "%RUNNER_TEMP%\STAT_EXAM_moved\workspace\tools\fix_launchers.py" --check || exit /b 1
+          jupyter --version || exit /b 1
+          pylsp --version || exit /b 1
+
+      - name: 不裝 JupyterLab 的建立（環境檢查要通過、不放 2_啟動JupyterLab.bat）
+        shell: powershell
+        run: |
+          .\build.ps1 -Out "$env:RUNNER_TEMP\STAT_EXAM_MIN" -SkipVSCode -SkipJupyterLab -SkipDocs -NoLocalSettings -StrictCheck
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          if (Test-Path "$env:RUNNER_TEMP\STAT_EXAM_MIN\2_*.bat") { throw "不裝 JupyterLab 時不應該有 2_啟動JupyterLab.bat" }
 
   mac-build:
     name: 在 Mac 上建立（不含離線文件）
@@ -96,6 +112,7 @@ jobs:
           "%PYTHON%" "%RUNNER_TEMP%\STAT_EXAM\workspace\tools\finish_setup.py" || exit /b 1
           "%PYTHON%" "%RUNNER_TEMP%\STAT_EXAM\workspace\tools\check_env.py" || exit /b 1
           "%PYTHON%" -m jupyterlab --version || exit /b 1
+          jupyter --version || exit /b 1
 
       - name: 確認擴充都裝好了
         shell: pwsh
@@ -103,7 +120,7 @@ jobs:
           $data = "$env:RUNNER_TEMP\STAT_EXAM\VSCode\data"
           if (Test-Path "$data\pending-vsix") { throw "pending-vsix 還在，擴充沒有裝完" }
           $ids = (Get-Content -Raw "$data\extensions\extensions.json" | ConvertFrom-Json).identifier.id
-          $missing = Get-Content config\extensions.txt | Where-Object { $_.Trim() -and $ids -notcontains $_.Trim() }
+          $missing = Get-Content config\extensions.txt, config\extensions-extra.txt | Where-Object { $_.Trim() -and $ids -notcontains $_.Trim() }
           if ($missing) { throw "沒有裝到：$($missing -join ', ')" }
           if (-not (Test-Path "$data\user-data\languagepacks.json")) { throw "沒有產生語言包快取" }
           "已安裝 $($ids.Count) 個擴充"

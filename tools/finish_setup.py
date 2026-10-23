@@ -1,8 +1,9 @@
 """第一次在 Windows 上使用時完成安裝（給在 Mac 上建立的環境用）。
 
-Mac 上沒辦法執行 Windows 版 VS Code 來安裝擴充，所以 setup/build_mac.py 先把 Windows 版的 .vsix
-放在 VSCode\\data\\pending-vsix\\，這裡用可攜式 VS Code 離線安裝，裝好就刪掉那個資料夾。
-由 1_啟動VSCode.bat、4_環境檢查.bat 在啟動前呼叫；在 Windows 上建立的環境沒有這個資料夾，什麼都不做。
+- Mac 上沒辦法執行 Windows 版 VS Code 來安裝擴充，所以 setup/build_mac.py 先把 Windows 版的 .vsix
+  放在 VSCode\\data\\pending-vsix\\，這裡用可攜式 VS Code 離線安裝，裝好就刪掉那個資料夾。
+- Mac 上裝的套件沒有 python\\Scripts\\*.exe（jupyter、pylsp…），用 fix_launchers.py 補上。
+由 1_啟動VSCode.bat、4_環境檢查.bat 在啟動前呼叫；在 Windows 上建立的環境兩件事都已經做好，什麼都不做。
 
     python tools/finish_setup.py
 """
@@ -36,6 +37,11 @@ def install(vsix):
 
 
 def main():
+    import fix_launchers
+    if not fix_launchers.MARKER.exists():
+        fixed = fix_launchers.fix()
+        if fixed:
+            print(f"第一次在 Windows 上使用：產生 {len(fixed)} 個命令列執行檔（jupyter、pylsp…）")
     vsix = sorted(PENDING.glob("*.vsix")) if PENDING.is_dir() else []
     if not vsix:
         return 0

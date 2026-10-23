@@ -177,6 +177,179 @@
             "plt.show()$0"
         ]
     },
+    // ---------- 多個變數（HW02 / HW03、講義 02a）----------
+    "分組統計（groupby）": {
+        "scope": "python",
+        "prefix": "groupstat",
+        "description": "依類別分組，算每一組的統計量。groupby('類別欄')：分組依據；['數值欄']：要統計的欄位；agg([...])：要算的統計量（std 是樣本標準差 ddof=1）；四分位數照講義要每組用 statistics.quantiles",
+        "body": [
+            "grouped = ${1:df}.groupby('${2:Region}')['${3:Food}']  # 依 Region 分組，取 Food 欄",
+            "display(grouped.agg(['count', 'mean', 'median', 'std', 'min', 'max']).round(4))  # std 是樣本標準差（ddof=1）",
+            "for name, g in grouped:  # 四分位數（講義的 exclusive 算法）",
+            "    print(name, statistics.quantiles(g.dropna(), n=4))$0"
+        ]
+    },
+    "樞紐分析表（pivot_table）": {
+        "scope": "python",
+        "prefix": "pivot",
+        "description": "兩個類別變數交叉分組後彙總一個數值欄。index：列的類別、columns：欄的類別、values：要彙總的數值欄、aggfunc：mean 平均 / sum 加總 / count 個數…",
+        "body": [
+            "table = ${1:df}.pivot_table(index='${2:Region}', columns='${3:Location}', values='${4:Food}', aggfunc='${5|mean,sum,count,median,max,min|}')  # 列、欄、數值、彙總方式",
+            "display(table.round(2))$0"
+        ]
+    },
+    "交叉表（crosstab）": {
+        "scope": "python",
+        "prefix": "crosstab",
+        "description": "兩個類別變數的次數表（列聯表）。margins=True：加上合計 All；normalize：'index' 每列加總為 1、'columns' 每欄加總為 1、'all' 全部加總為 1",
+        "body": [
+            "display(pd.crosstab(${1:df}['${2:Region}'], ${1:df}['${3:Location}'], margins=True))  # 次數，All 是合計",
+            "display(pd.crosstab(${1:df}['${2:Region}'], ${1:df}['${3:Location}'], normalize='${4|index,columns,all|}').round(4))  # 比例$0"
+        ]
+    },
+    "相關 / 共變異數矩陣": {
+        "scope": "python",
+        "prefix": "corrm",
+        "description": "多個變數兩兩之間的相關係數與共變異數。cols：要比較的欄位；corr()：相關係數 r；cov(ddof=1)：樣本共變異數（除以 n − 1），ddof=0：母體（除以 n）",
+        "body": [
+            "cols = [${2:'Food', 'Income', 'Debt'}]  # 要比較的欄位",
+            "display(${1:df}[cols].corr().round(4))  # 相關係數矩陣（對角線是 1）",
+            "display(${1:df}[cols].cov(ddof=${3|1,0|}).round(4))  # 共變異數矩陣；ddof=1 樣本、ddof=0 母體$0"
+        ]
+    },
+    "多欄敘述統計（statistics）": {
+        "scope": "python",
+        "prefix": "descm",
+        "description": "多個數值欄位的統計量並排比較（講義寫法）。cols：要比較的欄位；quantiles(n=4)：四分位數（exclusive）；pstdev：母體標準差、stdev：樣本標準差",
+        "body": [
+            "cols = [${2:'Food', 'Income', 'Debt'}]  # 要比較的欄位",
+            "summary = pd.DataFrame({c: {",
+            "    'mean': statistics.mean(${1:df}[c].dropna()),",
+            "    'median': statistics.median(${1:df}[c].dropna()),",
+            "    'Q1': statistics.quantiles(${1:df}[c].dropna(), n=4)[0],  # 講義的 exclusive 算法",
+            "    'Q3': statistics.quantiles(${1:df}[c].dropna(), n=4)[2],",
+            "    'pstdev': statistics.pstdev(${1:df}[c].dropna()),  # 母體標準差",
+            "    'stdev': statistics.stdev(${1:df}[c].dropna()),  # 樣本標準差",
+            "} for c in cols})",
+            "display(summary.round(4))$0"
+        ]
+    },
+    "兩兩散佈圖（多個變數）": {
+        "scope": "python",
+        "prefix": "scatm",
+        "description": "多個變數兩兩畫散佈圖，每張標題附相關係數 r。cols：要比較的欄位；combinations(cols, 2)：所有兩兩組合；figsize=(寬, 高)",
+        "body": [
+            "from itertools import combinations",
+            "cols = [${2:'Food', 'Income', 'Debt'}]  # 要比較的欄位",
+            "pairs = list(combinations(cols, 2))  # 兩兩一組",
+            "fig, axes = plt.subplots(1, len(pairs), figsize=(6 * len(pairs), 5), squeeze=False)",
+            "for ax, (x, y) in zip(axes[0], pairs):",
+            "    r = ${1:df}[x].corr(${1:df}[y])",
+            "    ax.scatter(${1:df}[x], ${1:df}[y], facecolors='none', edgecolors='black')",
+            "    ax.set_xlabel(x)",
+            "    ax.set_ylabel(y)",
+            "    ax.set_title(f'{y} vs {x} (r = {r:.2f})')",
+            "plt.show()$0"
+        ]
+    },
+    "依類別上色的散佈圖": {
+        "scope": "python",
+        "prefix": "scatg",
+        "description": "散佈圖依類別畫不同顏色並加圖例，最後印出各組的相關係數。groupby('類別欄')：每一組畫一次；label：圖例名稱",
+        "body": [
+            "for name, g in ${1:df}.groupby('${2:Region}'):  # 每一組畫一次，顏色自動換",
+            "    plt.scatter(g['${3:Debt}'], g['${4:Food}'], label=str(name))",
+            "plt.xlabel('${3:Debt}')",
+            "plt.ylabel('${4:Food}')",
+            "plt.legend(title='${2:Region}')",
+            "plt.title('${4:Food} vs ${3:Debt} by ${2:Region}')",
+            "plt.show()",
+            "print(${1:df}.groupby('${2:Region}')[['${3:Debt}', '${4:Food}']].apply(lambda g: g['${3:Debt}'].corr(g['${4:Food}'])))  # 各組的 r$0"
+        ]
+    },
+    "分組長條圖（並排）": {
+        "scope": "python",
+        "prefix": "barg",
+        "description": "兩個類別變數的並排長條圖（講義 02a）。pivot_table 的列 → 橫軸類別、欄 → 不同顏色；width：每根長條寬度；x + 位移讓同一類別的長條並排",
+        "body": [
+            "table = ${1:df}.pivot_table(index='${2:Region}', columns='${3:Location}', values='${4:Food}', aggfunc='mean')  # 也可以用 pd.crosstab 算次數",
+            "x = np.arange(len(table.index))  # 每個類別的位置 0, 1, 2, ...",
+            "width = 0.8 / len(table.columns)  # 每根長條的寬度",
+            "for j, col in enumerate(table.columns):",
+            "    plt.bar(x + (j - (len(table.columns) - 1) / 2) * width, table[col], width, label=str(col), edgecolor='black')",
+            "plt.xticks(x, table.index.astype(str))",
+            "plt.xlabel('${2:Region}')",
+            "plt.ylabel('${4:Food}')",
+            "plt.legend(title='${3:Location}')",
+            "plt.title('${5:Title}')",
+            "plt.show()$0"
+        ]
+    },
+    "堆疊長條圖": {
+        "scope": "python",
+        "prefix": "bars",
+        "description": "堆疊長條圖：每個類別一根，裡面依另一個類別分段。crosstab：次數；bottom：這一段從哪裡開始疊",
+        "body": [
+            "table = pd.crosstab(${1:df}['${2:Region}'], ${1:df}['${3:Location}'])  # 次數（也可以用 pivot_table）",
+            "bottom = np.zeros(len(table.index))",
+            "for col in table.columns:",
+            "    plt.bar(table.index.astype(str), table[col], bottom=bottom, label=str(col), edgecolor='black')",
+            "    bottom += table[col].to_numpy()",
+            "plt.xlabel('${2:Region}')",
+            "plt.ylabel('Frequency')",
+            "plt.legend(title='${3:Location}')",
+            "plt.title('${4:Title}')",
+            "plt.show()$0"
+        ]
+    },
+    "依類別分組的盒鬚圖": {
+        "scope": "python",
+        "prefix": "boxg",
+        "description": "依類別分組，每組畫一個盒子。groupby('類別欄')['數值欄']：分組；tick_labels：每組名稱；widths：盒子寬度",
+        "body": [
+            "groups = ${1:df}.groupby('${2:Region}')['${3:Food}']  # 依 Region 分組",
+            "plt.boxplot([g.dropna() for _, g in groups], tick_labels=[str(k) for k, _ in groups], widths=0.4)",
+            "plt.xlabel('${2:Region}')",
+            "plt.ylabel('${3:Food}')",
+            "plt.title('${3:Food} by ${2:Region}')",
+            "plt.show()$0"
+        ]
+    },
+    "多條折線圖": {
+        "scope": "python",
+        "prefix": "linem",
+        "description": "同一張圖畫多條折線並加圖例（講義 02a）。x：橫軸（例如月份）；y1、y2：各組的值；label：圖例名稱；marker='o' 標出資料點",
+        "body": [
+            "plt.plot(${1:x}, ${2:y1}, marker='o', linestyle='-', label='${3:Group 1}')  # 第一條線",
+            "plt.plot(${1:x}, ${4:y2}, marker='o', linestyle='-', label='${5:Group 2}')  # 第二條線",
+            "plt.xlabel('${6:x}')",
+            "plt.ylabel('${7:y}')",
+            "plt.legend()",
+            "plt.title('${8:Title}')",
+            "plt.show()$0"
+        ]
+    },
+    "statkit 分組比較": {
+        "scope": "python",
+        "prefix": "skby",
+        "description": "sk.describe_by(df, 數值欄, by=類別欄)：各組的統計量（四分位數用講義算法）並印出 groupby 寫法；sk.box_by：各組的盒鬚圖",
+        "body": [
+            "display(sk.describe_by(${1:df}, '${2:Food}', by='${3:Region}'))  # 各組統計量 + groupby 寫法",
+            "sk.box_by(${1:df}, '${2:Food}', by='${3:Region}')  # 各組盒鬚圖$0"
+        ]
+    },
+    "statkit 相關矩陣": {
+        "scope": "python",
+        "prefix": "skcorr",
+        "description": "sk.corr_matrix(df, cols)：相關係數矩陣，並指出相關最強的一組（kind='cov' 改算共變異數）；sk.scatter_matrix：兩兩散佈圖 + r",
+        "body": [
+            "cols = [${2:'Food', 'Income', 'Debt'}]  # 要比較的欄位",
+            "display(sk.corr_matrix(${1:df}, cols))  # 相關係數矩陣 + 相關最強的一組",
+            "sk.scatter_matrix(${1:df}, cols)  # 兩兩散佈圖 + r$0"
+        ]
+    },
+
+    // ---------- 機率分布 ----------
     "二項分布": {
         "scope": "python",
         "prefix": "binom",

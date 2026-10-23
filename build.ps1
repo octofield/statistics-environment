@@ -12,6 +12,7 @@
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File build.ps1
   powershell -ExecutionPolicy Bypass -File build.ps1 -SkipDocs
+  powershell -ExecutionPolicy Bypass -File build.ps1 -SkipJupyterLab -SkipExtraExtensions
   powershell -ExecutionPolicy Bypass -File build.ps1 -Out E:\STAT_EXAM -StudentId B12345678 -StudentName 王小明 -HandoutsDir D:\講義
 #>
 param(
@@ -25,7 +26,10 @@ param(
     [string]$VSCodeUrl = (Get-Content -Raw -Encoding utf8 "$PSScriptRoot\config\sources.json" | ConvertFrom-Json).vscode_win,
     [string]$FontUrl = (Get-Content -Raw -Encoding utf8 "$PSScriptRoot\config\sources.json" | ConvertFrom-Json).font,
     [string]$UvUrl = (Get-Content -Raw -Encoding utf8 "$PSScriptRoot\config\sources.json" | ConvertFrom-Json).uv_windows,
-    [switch]$SkipVSCode,
+    # 元件（精靈的「選擇元件」頁）：取消勾選不會移除之前已經建立好的部分
+    [switch]$SkipVSCode,          # 不裝可攜式 VS Code（只用 JupyterLab）
+    [switch]$SkipExtraExtensions, # 不裝附加的 VS Code 擴充（config\extensions-extra.txt：PDF / Excel 檢視…）
+    [switch]$SkipJupyterLab,      # 不裝 JupyterLab（requirements-jupyterlab.txt），也不放 2_啟動JupyterLab.bat
     [switch]$SkipDocs,
     [switch]$SkipCheck,
     [switch]$NoLocalSettings,     # 不同步這台電腦的 VS Code 設定，只用考試設定
@@ -108,6 +112,7 @@ function Get-File($url, $name) {
 function Run {
     # 執行外部程式，失敗就停止（用 $args，避免 -m 之類的參數被 PowerShell 吃掉）
     $exe, $rest = $args
+    $rest = @($rest)            # 只有一個參數時 $rest 是字串，直接 splat 會被拆成一個一個字元
     & $exe @rest
     if ($LASTEXITCODE -ne 0) { throw "指令失敗（exit $LASTEXITCODE）：$($args -join ' ')" }
 }
@@ -176,6 +181,8 @@ if (-not $SkipDocs) {
 
 # ------------------------------------------------------------------ 2. 套件
 Step "2. 安裝套件"
+$reqArgs = @("-r", "$Repo\requirements.txt")
+if (-not $SkipJupyterLab) { $reqArgs += @("-r", "$Repo\requirements-jupyterlab.txt") }
 # uv 會平行下載、安裝，比 pip 快很多；拿不到 uv 或安裝失敗就改用 pip
 $uv = $null
 try {
@@ -187,14 +194,18 @@ try {
 }
 $installed = $false
 if ($uv) {
-    & $uv pip install --python $Py --compile-bytecode -r "$Repo\requirements.txt"
+    # --link-mode copy：uv 預設從快取 hardlink，建立位置跟快取不在同一顆 NTFS 磁碟（或被防毒鎖住）時會失敗；
+    # 反正整個環境之後都要複製到隨身碟，直接複製最可靠，也不會跟 uv 的快取共用檔案
+    & $uv pip install --python $Py --link-mode copy --compile-bytecode @reqArgs
     $installed = $LASTEXITCODE -eq 0
     if (-not $installed) { Write-Warning "uv 安裝失敗（exit $LASTEXITCODE），改用 pip" }
     $global:LASTEXITCODE = 0
 }
 if (-not $installed) {
-    Run $Py -m pip install -r "$Repo\requirements.txt" --no-warn-script-location --progress-bar off
+    Run $Py -m pip install @reqArgs --no-warn-script-location --progress-bar off
 }
+# uv 產生的 Scripts\*.exe（jupyter、pylsp…）記的是建立時的路徑，複製到隨身碟就不能用；換成 WinPython 的 #!python.exe 格式
+Run $Py "$Repo\tools\fix_launchers.py"
 $site = (& $Py -c "import sysconfig; print(sysconfig.get_paths()['purelib'])").Trim()
 # 套件附的測試檔（加起來上萬個檔案、數百 MB）考試用不到，刪掉之後防毒掃描、複製到隨身碟都快很多
 foreach ($pkg in "numpy", "pandas", "scipy", "statsmodels", "sympy", "matplotlib", "mpl_toolkits", "seaborn", "IPython") {
@@ -233,7 +244,9 @@ if (-not $SkipVSCode) {
     if ($NoLocalSettings) { $syncArgs += "--no-local" }
     Run $Py @syncArgs
     $installedExt = (& "$vsDir\bin\code.cmd" --list-extensions) -join "`n"
-    $missing = @(Get-Content "$Repo\config\extensions.txt" | ForEach-Object { $_.Trim() } |
+    $extFiles = @("$Repo\config\extensions.txt")
+    if (-not $SkipExtraExtensions) { $extFiles += "$Repo\config\extensions-extra.txt" }
+    $missing = @(Get-Content $extFiles | ForEach-Object { $_.Trim() } |
         Where-Object { $_ -and $installedExt -notmatch [regex]::Escape($_) })
     if ($missing) {
         # 一次裝完：每呼叫一次 code.cmd 就要冷啟動一次 VS Code
@@ -309,7 +322,10 @@ if (-not $SkipDocs) {
 
 # ------------------------------------------------------------------ 6. 啟動器
 Step "6. 啟動器"
-Copy-Item "$Repo\launchers\*.bat" $Out -Force
+# 沒裝的編輯器就不放它的啟動檔（之前建立過的會留著，跟留下來的程式一致）
+Get-ChildItem "$Repo\launchers\*.bat" |
+    Where-Object { -not (($SkipVSCode -and $_.Name -like "1_*") -or ($SkipJupyterLab -and $_.Name -like "2_*")) } |
+    Copy-Item -Destination $Out -Force
 Copy-Item "$Repo\templates\使用說明.txt" $Out -Force
 & $Py -m pip freeze | Set-Content "$Ws\tools\requirements-lock.txt" -Encoding utf8
 

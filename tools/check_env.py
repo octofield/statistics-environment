@@ -18,8 +18,9 @@ ROOT = WORKSPACE.parent
 sys.path.insert(0, str(WORKSPACE))
 
 PACKAGES = ["numpy", "pandas", "matplotlib", "scipy", "sympy", "statsmodels", "openpyxl",
-            "seaborn", "ipywidgets", "IPython", "ipykernel", "nbconvert", "nbformat",
-            "jupyterlab", "notebook"]
+            "seaborn", "ipywidgets", "IPython", "ipykernel", "nbconvert", "nbformat"]
+# 精靈可以不裝 JupyterLab；有 2_啟動JupyterLab.bat 才檢查
+JUPYTERLAB_PACKAGES = ["jupyterlab", "notebook"]
 AI_WORDS = ("copilot", "chatgpt", "openai", "codeium", "tabnine", "continue", "cody", "jupyter-ai",
             "jupyter_ai", "claude", "gemini", "intellicode")
 
@@ -34,12 +35,21 @@ def report(ok, name, detail=""):
 
 def check_packages():
     print(f"Python {sys.version.split()[0]}　（{sys.executable}）")
-    for name in PACKAGES:
+    has_lab = any(ROOT.glob("2_*.bat"))
+    if not has_lab:
+        print("[INFO] 沒有安裝 JupyterLab（建立時取消勾選），略過 jupyterlab、notebook")
+    for name in PACKAGES + (JUPYTERLAB_PACKAGES if has_lab else []):
         try:
             mod = importlib.import_module(name)
             report(True, name, getattr(mod, "__version__", ""))
         except Exception as e:
             report(False, name, f"無法 import：{e}")
+    # uv 產生的執行檔搬到別的位置（複製到隨身碟）就會出現「uv trampoline failed to canonicalize script path」
+    if os.name == "nt":
+        from fix_launchers import nonportable
+        bad = nonportable()
+        report(not bad, "命令列執行檔可攜（jupyter、pylsp…複製到隨身碟也能用）",
+               f"{', '.join(bad[:8])}{' …' if len(bad) > 8 else ''}；請執行 python workspace\\tools\\fix_launchers.py" if bad else "")
 
 
 def check_statkit():

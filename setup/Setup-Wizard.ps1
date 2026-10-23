@@ -37,7 +37,8 @@ $D = Get-WizardDefaults $Repo
 $S = @{
     Ack = $false; StudentId = ""; StudentName = ""; SkipStudent = $false
     HandoutsDir = $D.HandoutsDir; HomeworkDir = $D.HomeworkDir
-    Out = $D.Out; Docs = $true; SyncVSCode = $D.HasLocalVSCode; CleanDownloads = $true
+    VSCode = $true; VSCodeExtras = $true; JupyterLab = $true; Docs = $true      # 元件：預設全裝
+    Out = $D.Out; SyncVSCode = $D.HasLocalVSCode; CleanDownloads = $true
     CopyUsb = $false; UsbDrive = ""
     Status = ""; Log = ""; Err = ""; Job = $null; Copy = $null; Check = $null; ExitCode = $null
 }
@@ -136,7 +137,8 @@ $pWelcome = New-Page
 Add-Label $pWelcome ("這個精靈會在你的電腦上建立一個可以帶進考場、完全離線使用的考試環境：`n`n" +
     "　• Python 3.13（WinPython）＋ 統計學會用到的套件（numpy、pandas、scipy、matplotlib…）`n" +
     "　• 可攜式 VS Code（已移除 Copilot、關閉所有 AI 功能），JupyterLab 當備案`n" +
-    "　• statkit 工具、各章筆記、公式總表、考卷範本、常見問題`n`n" +
+    "　• statkit 工具、各章筆記、公式總表、考卷範本、常見問題`n" +
+    "　（VS Code、JupyterLab、離線文件等可以在「選擇元件」那一步決定要不要裝，預設全裝）`n`n" +
     "需要：網路（下載約 1 GB）、約 3 GB 硬碟空間、15–40 分鐘。完成後可以直接複製到隨身碟（建議 8 GB 以上）。`n" +
     "所有軟體都從官方網站下載；你選的講義、作業只會複製到你的電腦和隨身碟，不會上傳到任何地方。") 0 0 732 190 | Out-Null
 $warn = New-Object Windows.Forms.Panel
@@ -185,23 +187,53 @@ foreach ($kind in @("HandoutsDir", "HomeworkDir")) {
 }
 Add-Label $pFiles "講義、作業通常有著作權或個人資料，請不要把這些檔案上傳到公開的地方。" 0 290 732 26 $FS $Muted | Out-Null
 
-# ------------------------------------------------------------------ 第 4 頁：選項
+# ------------------------------------------------------------------ 第 4 頁：選擇元件
+$pComps = New-Page
+Add-Label $pComps ("預設全部安裝，不需要的可以取消勾選（VS Code 和 JupyterLab 至少要留一個）。" +
+    "之後想加回來，用同一個建立位置再執行一次精靈就好；取消勾選不會刪除之前已經建立好的部分。") 0 0 732 44 $FS $Muted | Out-Null
+$GB = $script:ComponentGB
+$compRows = @(
+    @{ Key = "VSCode"; X = 0; Text = "可攜式 VS Code 與必要擴充（約 $($GB.VSCode) GB）"
+       Note = "主力編輯器：Python、Pylance、Jupyter、繁中介面、snippets、一鍵匯出 HTML。`n不裝：只能用 JupyterLab 作答，匯出 HTML 改用 3_匯出HTML.bat。" }
+    @{ Key = "VSCodeExtras"; X = 24; Text = "附加 VS Code 擴充：PDF 檢視、Excel 檢視、Rainbow CSV、Code Runner（約 25 MB）"
+       Note = "不裝：講義 PDF、Excel 資料不能在 VS Code 裡打開，考場電腦不一定有其他程式可以開。" }
+    @{ Key = "JupyterLab"; X = 0; Text = "JupyterLab 備案（約 $($GB.JupyterLab) GB）"
+       Note = "在瀏覽器作答的備案，有些課程規定一定要用 Jupyter Lab。`n不裝：VS Code 出問題時沒有備案，也不會有 2_啟動JupyterLab.bat。" }
+    @{ Key = "Docs"; X = 0; Text = "離線文件：pandas / numpy / scipy / Python（約 $($GB.Docs) GB、2 萬個檔案）"
+       Note = "不裝：只能用滑鼠停在函式上或 Shift+Tab 看說明；好處是複製到隨身碟會快很多。" }
+)
+$compChecks = @{}
+$y = 54
+foreach ($row in $compRows) {
+    $compChecks[$row.Key] = Add-CheckBox $pComps $row.Text $row.X $y (732 - $row.X) 26 $S[$row.Key]
+    $compChecks[$row.Key].Font = $FB
+    Add-Label $pComps $row.Note ($row.X + 20) ($y + 28) (712 - $row.X) 40 $FS $Muted | Out-Null
+    $y += 82
+}
+
+# ------------------------------------------------------------------ 第 5 頁：選項
 $pOpts = New-Page
 Add-Label $pOpts "建立位置" 0 3 90 26 $FB | Out-Null
 $txtOut = Add-TextBox $pOpts $S.Out 94 0 530
 $btnOut = Add-Button $pOpts "瀏覽…" 634 -2 90
 $lblOut = Add-Label $pOpts "" 94 32 630 22 $FS $Muted
-$chkDocs = Add-CheckBox $pOpts "下載離線文件（pandas / numpy / scipy / Python；+0.65 GB、約 2 萬個檔案，複製到隨身碟會久很多）" 0 64 732 28 $S.Docs
 $vsText = if ($D.HasLocalVSCode) { "同步這台電腦的 VS Code 設定（字體大小、快捷鍵、介面語言…；AI 相關設定一律排除）" } else { "同步這台電腦的 VS Code 設定（這台電腦沒有安裝 VS Code，無法同步）" }
-$chkSync = Add-CheckBox $pOpts $vsText 0 96 732 28 ($S.SyncVSCode -and $D.HasLocalVSCode)
-$chkSync.Enabled = $D.HasLocalVSCode
-$chkClean = Add-CheckBox $pOpts "完成後刪除下載快取（省約 1 GB；之後要重新建立需要再下載）" 0 128 732 28 $S.CleanDownloads
-$chkUsb = Add-CheckBox $pOpts "完成後複製到隨身碟" 0 172 300 28 $S.CopyUsb
+$chkSync = Add-CheckBox $pOpts $vsText 0 64 732 28 ($S.SyncVSCode -and $D.HasLocalVSCode)
+$chkClean = Add-CheckBox $pOpts "完成後刪除下載快取（省約 1 GB；之後要重新建立需要再下載）" 0 96 732 28 $S.CleanDownloads
+$chkUsb = Add-CheckBox $pOpts "完成後複製到隨身碟" 0 140 300 28 $S.CopyUsb
 $cmbUsb = New-Object Windows.Forms.ComboBox
-$cmbUsb.DropDownStyle = "DropDownList"; $cmbUsb.Location = New-Object Drawing.Point(24, 204); $cmbUsb.Size = New-Object Drawing.Size(520, 28); $cmbUsb.Font = $F
+$cmbUsb.DropDownStyle = "DropDownList"; $cmbUsb.Location = New-Object Drawing.Point(24, 172); $cmbUsb.Size = New-Object Drawing.Size(520, 28); $cmbUsb.Font = $F
 $pOpts.Controls.Add($cmbUsb)
-$btnUsbRefresh = Add-Button $pOpts "重新整理" 554 202 100
-$lblUsb = Add-Label $pOpts "會複製到「隨身碟:\STAT_EXAM」；隨身碟上已經有的考卷不會被刪除。" 24 238 700 22 $FS $Muted
+$btnUsbRefresh = Add-Button $pOpts "重新整理" 554 170 100
+$lblUsb = Add-Label $pOpts "會複製到「隨身碟:\STAT_EXAM」；隨身碟上已經有的考卷不會被刪除。" 24 206 700 22 $FS $Muted
+# 沒裝 VS Code 時，附加擴充和同步設定都沒有意義
+function Update-CompState {
+    $vs = $compChecks.VSCode.Checked
+    $compChecks.VSCodeExtras.Enabled = $vs
+    $chkSync.Enabled = $vs -and $D.HasLocalVSCode
+}
+$compChecks.VSCode.Add_CheckedChanged({ Update-CompState })
+Update-CompState
 $script:Drives = @()
 function Update-Drives {
     $script:Drives = @(Get-RemovableDrives)
@@ -274,28 +306,32 @@ $btnOpenGuide.Add_Click({ $g = Join-Path $S.Out "使用說明.txt"; if (Test-Pat
 $btnOpenUsb.Add_Click({ if ($S.Copy -and (Test-Path $S.Copy.Destination)) { Start-Process explorer.exe $S.Copy.Destination } })
 $btnOpenLog.Add_Click({ if ($S.Job) { Start-Process notepad.exe $S.Job.LogPath } })
 
-$pages = @($pWelcome, $pStudent, $pFiles, $pOpts, $pConfirm, $pProg, $pDone)
-$titles = @("歡迎使用統計學考試環境 初始化精靈", "學號與姓名", "講義與作業", "選項", "確認設定", "正在建立環境", "完成")
+$pages = @($pWelcome, $pStudent, $pFiles, $pComps, $pOpts, $pConfirm, $pProg, $pDone)
+$titles = @("歡迎使用統計學考試環境 初始化精靈", "學號與姓名", "講義與作業", "選擇元件", "選項", "確認設定", "正在建立環境", "完成")
+# 頁碼用名字對應，加頁的時候不用到處改數字
+$iWelcome, $iStudent, $iFiles, $iComps, $iOpts, $iConfirm, $iProg, $iDone = 0..($pages.Count - 1)
 $script:Page = 0
 
 function Show-Page([int]$i) {
     $script:Page = $i
     for ($k = 0; $k -lt $pages.Count; $k++) { $pages[$k].Visible = ($k -eq $i) }
     $hTitle.Text = $titles[$i]
-    $hSub.Text = if ($i -le 4) { "步驟 $($i + 1) / 5" } elseif ($i -eq 5) { "請稍候，不要關閉這個視窗" } else { "" }
-    $btnBack.Visible = ($i -ge 1 -and $i -le 4)
-    $btnNext.Visible = ($i -ne 5)
-    $btnNext.Text = if ($i -eq 4) { "開始建立" } elseif ($i -eq 6) { "完成" } else { "下一步 >" }
-    $btnCancel.Visible = ($i -ne 6)
-    $btnCancel.Text = if ($i -eq 5) { "停止" } else { "取消" }
-    if ($i -eq 4) { $txtSummary.Text = Get-Summary }
+    $hSub.Text = if ($i -le $iConfirm) { "步驟 $($i + 1) / $($iConfirm + 1)" } elseif ($i -eq $iProg) { "請稍候，不要關閉這個視窗" } else { "" }
+    $btnBack.Visible = ($i -ge 1 -and $i -le $iConfirm)
+    $btnNext.Visible = ($i -ne $iProg)
+    $btnNext.Text = if ($i -eq $iConfirm) { "開始建立" } elseif ($i -eq $iDone) { "完成" } else { "下一步 >" }
+    $btnCancel.Visible = ($i -ne $iDone)
+    $btnCancel.Text = if ($i -eq $iProg) { "停止" } else { "取消" }
+    if ($i -eq $iConfirm) { $txtSummary.Text = Get-Summary }
 }
 
 function Save-Inputs {
     $S.Ack = $chkAck.Checked
     $S.StudentId = $txtId.Text.Trim().ToUpper(); $S.StudentName = $txtName.Text.Trim(); $S.SkipStudent = $chkSkip.Checked
     $S.HandoutsDir = $folderRows["HandoutsDir"].Box.Text.Trim(); $S.HomeworkDir = $folderRows["HomeworkDir"].Box.Text.Trim()
-    $S.Out = $txtOut.Text.Trim(); $S.Docs = $chkDocs.Checked; $S.SyncVSCode = $chkSync.Checked -and $D.HasLocalVSCode
+    foreach ($k in $compChecks.Keys) { $S[$k] = $compChecks[$k].Checked }
+    $S.VSCodeExtras = $S.VSCodeExtras -and $S.VSCode
+    $S.Out = $txtOut.Text.Trim(); $S.SyncVSCode = $chkSync.Checked -and $D.HasLocalVSCode -and $S.VSCode
     $S.CleanDownloads = $chkClean.Checked; $S.CopyUsb = $chkUsb.Checked
     $S.UsbDrive = if ($chkUsb.Checked -and $script:Drives.Count -gt 0 -and $cmbUsb.SelectedIndex -ge 0) { $script:Drives[$cmbUsb.SelectedIndex].Drive } else { "" }
 }
@@ -303,8 +339,8 @@ function Save-Inputs {
 function Test-Page([int]$i) {
     Save-Inputs
     switch ($i) {
-        0 { if (-not $S.Ack) { [void](Show-Message "請先勾選「我了解，會自行確認考試規定」。"); return $false } }
-        1 {
+        $iWelcome { if (-not $S.Ack) { [void](Show-Message "請先勾選「我了解，會自行確認考試規定」。"); return $false } }
+        $iStudent {
             if ($S.SkipStudent) { return $true }
             if (-not $S.StudentId -or -not $S.StudentName) { [void](Show-Message "請輸入學號和姓名，或勾選「先略過」。"); return $false }
             if (-not (Test-StudentId $S.StudentId)) {
@@ -312,14 +348,23 @@ function Test-Page([int]$i) {
                 if ($r -ne "Yes") { return $false }
             }
         }
-        2 {
+        $iFiles {
             foreach ($k in "HandoutsDir", "HomeworkDir") {
                 if ($S[$k] -and -not (Test-Path -LiteralPath $S[$k])) { [void](Show-Message "找不到資料夾：$($S[$k])"); return $false }
             }
         }
-        3 {
+        $iComps {
+            if (-not $S.VSCode -and -not $S.JupyterLab) {
+                [void](Show-Message "VS Code 和 JupyterLab 至少要選一個，不然沒有地方可以寫考卷。"); return $false
+            }
+            if (-not $S.JupyterLab) {
+                $r = Show-Message ("不裝 JupyterLab 的話，VS Code 出問題時就沒有備案；有些課程也規定要用 Jupyter Lab。`n`n確定不裝嗎？") "YesNo" "Warning"
+                if ($r -ne "Yes") { return $false }
+            }
+        }
+        $iOpts {
             if (-not $S.Out) { [void](Show-Message "請選擇建立位置。"); return $false }
-            $need = (Get-RequiredGB $S.Docs) + 1.2          # 加上下載快取
+            $need = (Get-RequiredGB $S) + 1.2               # 加上下載快取
             $free = Get-FreeSpaceGB $S.Out
             if ($null -ne $free -and $free -lt $need -and -not (Test-Path (Join-Path $S.Out "WPy64-*"))) {
                 if ((Show-Message "建立位置的磁碟只剩 $free GB，建議至少 $need GB，還是要繼續嗎？" "YesNo" "Warning") -ne "Yes") { return $false }
@@ -327,7 +372,7 @@ function Test-Page([int]$i) {
             if ($S.CopyUsb) {
                 if (-not $S.UsbDrive) { [void](Show-Message "找不到隨身碟。請插上隨身碟後按「重新整理」，或取消勾選「複製到隨身碟」。"); return $false }
                 $d = $script:Drives | Where-Object Drive -eq $S.UsbDrive
-                $need = Get-RequiredGB $S.Docs
+                $need = Get-RequiredGB $S
                 if ($d.FreeGB -lt $need -and -not (Test-Path (Join-Path $S.UsbDrive "STAT_EXAM"))) {
                     if ((Show-Message "隨身碟只剩 $($d.FreeGB) GB，需要大約 $need GB，還是要繼續嗎？" "YesNo" "Warning") -ne "Yes") { return $false }
                 }
@@ -340,17 +385,23 @@ function Test-Page([int]$i) {
 function Get-Summary {
     $yes = { param($b) if ($b) { "是" } else { "否" } }
     $student = if ($S.SkipStudent -or -not $S.StudentId) { "（略過，第一次新增考卷時再輸入）" } else { "$($S.StudentId)　$($S.StudentName)" }
+    $names = [ordered]@{ VSCode = "VS Code"; VSCodeExtras = "附加 VS Code 擴充"; JupyterLab = "JupyterLab"; Docs = "離線文件" }
+    # 沒裝 VS Code 時，附加擴充和同步設定都不算
+    $on = @{ VSCode = $S.VSCode; VSCodeExtras = $S.VSCodeExtras -and $S.VSCode; JupyterLab = $S.JupyterLab; Docs = $S.Docs }
+    $comps = @($names.Keys | Where-Object { $on[$_] } | ForEach-Object { $names[$_] })
+    $skipped = @($names.Keys | Where-Object { -not $on[$_] } | ForEach-Object { $names[$_] })
     @(
         "學號姓名：$student"
         "講義資料夾：$(if ($S.HandoutsDir) { $S.HandoutsDir } else { '（不放）' })"
         "作業資料夾：$(if ($S.HomeworkDir) { $S.HomeworkDir } else { '（不放）' })"
         "建立位置：$($S.Out)"
-        "離線文件：$(& $yes $S.Docs)"
-        "同步 VS Code 設定：$(& $yes $S.SyncVSCode)"
+        "元件：$($comps -join '、')"
+        if ($skipped) { "　（不裝：$($skipped -join '、')）" }
+        "同步 VS Code 設定：$(& $yes ($S.SyncVSCode -and $S.VSCode))"
         "完成後刪除下載快取：$(& $yes $S.CleanDownloads)"
         "複製到隨身碟：$(if ($S.CopyUsb) { Join-Path $S.UsbDrive 'STAT_EXAM' } else { '否' })"
         ""
-        "預估：下載約 1 GB、建立後約 $(Get-RequiredGB $S.Docs) GB、15–40 分鐘（依網路速度而定）"
+        "預估：下載約 1 GB、建立後約 $(Get-RequiredGB $S) GB、15–40 分鐘（依網路速度而定）"
     ) -join "`r`n"
 }
 
@@ -368,7 +419,9 @@ function Add-LogText([string]$text) {
 function Start-Build {
     $opts = [pscustomobject]@{
         Out = $S.Out; StudentId = $(if ($S.SkipStudent) { "" } else { $S.StudentId }); StudentName = $(if ($S.SkipStudent) { "" } else { $S.StudentName })
-        HandoutsDir = $S.HandoutsDir; HomeworkDir = $S.HomeworkDir; Docs = $S.Docs; SyncVSCode = $S.SyncVSCode; CleanDownloads = $S.CleanDownloads
+        HandoutsDir = $S.HandoutsDir; HomeworkDir = $S.HomeworkDir
+        VSCode = $S.VSCode; VSCodeExtras = $S.VSCodeExtras; JupyterLab = $S.JupyterLab; Docs = $S.Docs
+        SyncVSCode = $S.SyncVSCode; CleanDownloads = $S.CleanDownloads
     }
     $S.Status = "building"; $S.Log = ""; $S.Err = ""
     $script:LogState.Pos = 0; $script:ErrState.Pos = 0
@@ -429,7 +482,7 @@ function Finish-Wizard([string]$status) {
                            LogPath = $S.Job.LogPath; CopyDestination = $(if ($S.Copy) { $S.Copy.Destination }) } |
             ConvertTo-Json | Set-Content -LiteralPath $ResultFile -Encoding UTF8
     }
-    Show-Page 6
+    Show-Page $iDone
     if ($AutoClose) { $form.Close() }
 }
 
@@ -477,14 +530,14 @@ function Stop-Running {
 # ------------------------------------------------------------------ 按鈕
 $btnNext.Add_Click({
     $i = $script:Page
-    if ($i -eq 6) { $form.Close(); return }
+    if ($i -eq $iDone) { $form.Close(); return }
     if (-not (Test-Page $i)) { return }
-    if ($i -eq 4) { Show-Page 5; Start-Build; return }
+    if ($i -eq $iConfirm) { Show-Page $iProg; Start-Build; return }
     Show-Page ($i + 1)
 })
 $btnBack.Add_Click({ Save-Inputs; Show-Page ([math]::Max(0, $script:Page - 1)) })
 $btnCancel.Add_Click({
-    if ($script:Page -eq 5) {
+    if ($script:Page -eq $iProg) {
         if ((Show-Message "確定要停止嗎？已下載的檔案會保留，下次執行精靈會接著做。" "YesNo" "Question") -eq "Yes") { Stop-Running }
     } else { $form.Close() }
 })
@@ -506,7 +559,7 @@ $form.Add_Shown({
         $S.Check = [pscustomobject]@{ Passed = $true; FailCount = 0; Failures = @() }
         $txtSummary.Text = Get-Summary
         for ($k = 0; $k -lt $pages.Count; $k++) {
-            if ($k -eq 6) { $lblResult.Text = "✔ 建立完成！"; $lblResult.ForeColor = [Drawing.Color]::FromArgb(0, 130, 60); $lblDetail.Text = "環境位置：$($S.Out)`n環境檢查：全部通過　｜　花費時間：18 分鐘" }
+            if ($k -eq $iDone) { $lblResult.Text = "✔ 建立完成！"; $lblResult.ForeColor = [Drawing.Color]::FromArgb(0, 130, 60); $lblDetail.Text = "環境位置：$($S.Out)`n環境檢查：全部通過　｜　花費時間：18 分鐘" }
             Show-Page $k
             [Windows.Forms.Application]::DoEvents()
             $bmp = New-Object Drawing.Bitmap($form.Width, $form.Height)
@@ -516,7 +569,7 @@ $form.Add_Shown({
         }
         $form.Close(); return
     }
-    if ($AutoStart) { Save-Inputs; Show-Page 5; Start-Build }
+    if ($AutoStart) { Save-Inputs; Show-Page $iProg; Start-Build }
 })
 Show-Page 0
 [void]$form.ShowDialog()

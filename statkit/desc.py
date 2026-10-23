@@ -299,3 +299,112 @@ def cov_corr(x, y):
     df = pd.DataFrame({"母體": [pcov, r], "樣本": [scov, r]},
                       index=["共變異數", "相關係數 r"]).round(4)
     return df
+
+
+# ------------------------------------------------------------------ 多個變數（HW02 / HW03）
+
+def _summary(s):
+    """一組資料的常用統計量（四分位數用講義的 exclusive 算法）。"""
+    v = list(s)
+    n = len(v)
+    q1, _, q3 = statistics.quantiles(v, n=4) if n >= 2 else (float("nan"),) * 3
+    return {
+        "個數 n": n,
+        "平均數": statistics.mean(v) if n else float("nan"),
+        "中位數": statistics.median(v) if n else float("nan"),
+        "Q1": q1,
+        "Q3": q3,
+        "母體標準差 σ": statistics.pstdev(v) if n else float("nan"),
+        "樣本標準差 s": statistics.stdev(v) if n >= 2 else float("nan"),
+        "最小值": min(v) if n else float("nan"),
+        "最大值": max(v) if n else float("nan"),
+    }
+
+
+def _numeric_cols(df, cols):
+    if cols is None:
+        cols = list(df.select_dtypes("number").columns)
+    elif isinstance(cols, str):
+        cols = [cols]
+    if not cols:
+        raise ValueError("找不到數值欄位，請用 cols=[...] 指定（欄位可能被讀成文字，先看 df.dtypes）")
+    return list(cols)
+
+
+def describe_cols(df, cols=None, digits=4):
+    """多個數值欄位並排比較：平均、中位、四分位、標準差、最小、最大。
+
+    參數
+        df       : DataFrame
+        cols     : 要比較的欄位，例如 ['Food', 'Income', 'Debt']；不給就用所有數值欄位
+        digits   : 顯示到小數第幾位
+    回傳
+        DataFrame：列為統計量、欄為變數
+    例
+        sk.describe_cols(df, ['Food', 'Income', 'Debt'])
+    """
+    cols = _numeric_cols(df, cols)
+    table = pd.DataFrame({c: _summary(_series(df[c])) for c in cols}).round(digits).astype(object)
+    table.loc["個數 n"] = table.loc["個數 n"].astype(int)
+    print(f"寫法：df[{cols!r}].agg(['count', 'mean', 'median', 'std', 'min', 'max'])")
+    print("　　　pandas 的 std 是樣本標準差（ddof=1）；四分位數照講義要用 statistics.quantiles(df[欄位], n=4)")
+    return table
+
+
+def describe_by(df, value, by, digits=4):
+    """依類別分組，比較每一組的統計量（例如各地區的食物支出）。
+
+    參數
+        df       : DataFrame
+        value    : 要統計的數值欄位，例如 'Food'
+        by       : 分組依據的類別欄位，例如 'Region'（也可以給 list，用兩個欄位交叉分組）
+        digits   : 顯示到小數第幾位
+    回傳
+        DataFrame：列為各組、欄為統計量
+    例
+        sk.describe_by(df, 'Food', by='Region')
+    """
+    rows = {k: _summary(_series(g)) for k, g in df.groupby(by)[value]}
+    table = pd.DataFrame(rows).T.round(digits)
+    table["個數 n"] = table["個數 n"].astype(int)
+    if isinstance(by, str):
+        table.index.name = by
+    else:
+        table.index.names = list(by)
+    print(f"寫法：df.groupby({by!r})[{value!r}].agg(['count', 'mean', 'median', 'std', 'min', 'max'])")
+    print("　　　只要一個統計量：df.groupby(...)[...].mean()；pandas 的 std 是樣本標準差（ddof=1）")
+    return table
+
+
+def corr_matrix(df, cols=None, kind="r", ddof=1, digits=4):
+    """多個變數兩兩之間的相關係數（或共變異數）矩陣，並指出相關最強的一組。
+
+    參數
+        df       : DataFrame
+        cols     : 要比較的欄位，例如 ['Food', 'Income', 'Debt']；不給就用所有數值欄位
+        kind     : 'r' → 相關係數；'cov' → 共變異數
+        ddof     : 共變異數用：1 → 樣本（除以 n − 1，pandas 預設）；0 → 母體（除以 n）
+        digits   : 顯示到小數第幾位
+    回傳
+        DataFrame（對稱矩陣，對角線是 1 或各變數的變異數）
+    例
+        sk.corr_matrix(df, ['Food', 'Income', 'Debt'])
+        sk.corr_matrix(df, ['Food', 'Income'], kind='cov', ddof=0)
+    """
+    cols = _numeric_cols(df, cols)
+    data = df[cols].astype(float)
+    if kind == "r":
+        table = data.corr()
+        print(f"寫法：df[{cols!r}].corr()　　兩個變數：df['x'].corr(df['y'])")
+    elif kind == "cov":
+        table = data.cov(ddof=ddof)
+        print(f"寫法：df[{cols!r}].cov(ddof={ddof})　　（{'樣本，除以 n − 1' if ddof == 1 else '母體，除以 n'}）")
+    else:
+        raise ValueError("kind 要是 'r'（相關係數）或 'cov'（共變異數）")
+    if len(cols) >= 2:
+        r = data.corr()
+        pairs = [(abs(r.iloc[i, j]), cols[i], cols[j], r.iloc[i, j])
+                 for i in range(len(cols)) for j in range(i + 1, len(cols))]
+        _, a, b, best = max(pairs)
+        print(f"相關最強的一組：{a} 與 {b}，r = {best:.4f}")
+    return table.round(digits)

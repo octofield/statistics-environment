@@ -7,11 +7,12 @@
 """
 from ._style import setup
 from .data import peek
-from .desc import (chebyshev, cov_corr, describe, empirical_rule, freq_table, grouped_stats,
-                   outliers_iqr, percent_rank, quantiles, zscore)
+from .desc import (chebyshev, corr_matrix, cov_corr, describe, describe_by, describe_cols, empirical_rule,
+                   freq_table, grouped_stats, outliers_iqr, percent_rank, quantiles, zscore)
 from .dist import (Binom, Discrete, Dist, Expon, Geom, Hypergeom, Normal, Poisson, Uniform, explore,
                    inventory_profit, moments, newsvendor, normal_approx, plot_dist, prob, quantile)
-from .plots import bar, box, hist, hist_classes, ogive, pareto, pie, qq_plot, scatter_r, stem_leaf
+from .plots import (bar, bar_grouped, box, box_by, hist, hist_classes, ogive, pareto, pie, qq_plot, scatter_by,
+                    scatter_matrix, scatter_r, stem_leaf)
 from .sim import estimate_pi, monty_hall, sample_means
 
 __version__ = "1.0.0"
@@ -46,6 +47,15 @@ statkit 功能列表　（每個函式都可以用 help(sk.函式名) 或 Shift+
   sk.bar(cats) / sk.pie(cats) / sk.pareto(cats)
   sk.stem_leaf(x, stem_unit=10)              莖葉圖（文字）
   sk.qq_plot(x)                              常態 Q-Q 圖
+
+【多個變數】（df 是讀進來的 DataFrame）
+  sk.describe_cols(df, ['Food', 'Income'])   多個欄位的統計量並排比較
+  sk.describe_by(df, 'Food', by='Region')    依類別分組的統計量（groupby）
+  sk.corr_matrix(df, ['Food', 'Income', 'Debt'])        相關係數矩陣（kind='cov' 為共變異數）
+  sk.scatter_matrix(df, ['Food', 'Income', 'Debt'])     兩兩散佈圖 + r
+  sk.scatter_by(df, 'Debt', 'Food', by='Region')        依類別上色的散佈圖 + 各組 r
+  sk.box_by(df, 'Food', by='Region')         依類別分組的盒鬚圖
+  sk.bar_grouped(pd.crosstab(df['A'], df['B']))         分組長條圖（stacked=True 堆疊）
 
 【機率分布】（參數用課本的記號）
   sk.Binom(n, p)   sk.Poisson(λ)   sk.Hypergeom(N, K, n)   sk.Geom(p)

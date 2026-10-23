@@ -322,3 +322,126 @@ def qq_plot(x, ax=None, title="Normal Q-Q plot"):
     ax.set_ylabel("Sample quantiles")
     ax.set_title(title)
     return ax
+
+
+# ------------------------------------------------------------------ 多個變數（講義 02a、HW02 / HW03）
+
+def scatter_matrix(df, cols=None, ncols=3):
+    """多個變數兩兩畫散佈圖（每個子圖標題附 r），一次看出誰跟誰有關。
+
+    參數
+        df       : DataFrame
+        cols     : 要畫的欄位，例如 ['Food', 'Income', 'Debt']；不給就用所有數值欄位
+        ncols    : 每列放幾張子圖
+    回傳
+        axes（子圖的 list）
+    例
+        sk.scatter_matrix(df, ['Food', 'Income', 'Debt'])
+    """
+    import matplotlib.pyplot as plt
+    from itertools import combinations
+
+    from .desc import _numeric_cols
+
+    cols = _numeric_cols(df, cols)
+    pairs = list(combinations(cols, 2))
+    if not pairs:
+        raise ValueError("至少要兩個欄位")
+    ncols = min(ncols, len(pairs))
+    nrows = -(-len(pairs) // ncols)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(6 * ncols, 5 * nrows), squeeze=False)
+    axes = list(axes.flat)
+    for ax, (x, y) in zip(axes, pairs):
+        d = df[[x, y]].dropna()                 # 兩欄一起去掉缺值，才不會錯位
+        scatter_r(d[x], d[y], ax=ax)
+    for ax in axes[len(pairs):]:
+        ax.set_visible(False)
+    return axes[:len(pairs)]
+
+
+def scatter_by(df, x, y, by, ax=None, xlabel=None, ylabel=None, title=None):
+    """散佈圖，依類別上不同顏色並加圖例，同時印出每一組的相關係數 r。
+
+    參數
+        df       : DataFrame
+        x, y     : 橫軸、縱軸的欄位名稱
+        by       : 分組的類別欄位，例如 'Region'
+        ax       : 畫在哪個子圖；不給就開一張新圖
+        xlabel / ylabel / title : 座標軸名稱、標題
+    回傳
+        ax
+    例
+        sk.scatter_by(df, 'Debt', 'Food', by='Region')
+    """
+    ax = new_ax(ax, figsize=(8, 6))
+    for name, g in df.groupby(by):
+        g = g[[x, y]].dropna()
+        ax.scatter(g[x], g[y], label=str(name), alpha=0.8)
+        r = g[x].corr(g[y]) if len(g) >= 2 else float("nan")
+        print(f"{by} = {name}：n = {len(g)}，r = {r:.4f}")
+    print(f"全部：r = {df[x].corr(df[y]):.4f}")
+    ax.legend(title=str(by))
+    ax.set_xlabel(xlabel or x)
+    ax.set_ylabel(ylabel or y)
+    ax.set_title(title or f"{y} vs {x} by {by}")
+    return ax
+
+
+def box_by(df, value, by, showmeans=False, ax=None, ylabel=None, title=None):
+    """依類別分組畫盒鬚圖（例如各地區的食物支出）。
+
+    參數
+        df       : DataFrame
+        value    : 數值欄位，例如 'Food'
+        by       : 分組的類別欄位，例如 'Region'
+        showmeans : True 另外標出平均數
+        ax       : 畫在哪個子圖；不給就開一張新圖
+        ylabel / title : 數值軸名稱、標題
+    回傳
+        ax
+    例
+        sk.box_by(df, 'Food', by='Region')
+    """
+    groups = {str(k): g for k, g in df.groupby(by)[value]}
+    return box(groups, showmeans=showmeans, ax=ax, ylabel=ylabel or value,
+               title=title or f"{value} by {by}")
+
+
+def bar_grouped(table, stacked=False, ax=None, xlabel=None, ylabel=None, title=None):
+    """分組（並排）或堆疊長條圖：把 pivot_table / crosstab 的結果直接畫出來。
+
+    參數
+        table    : DataFrame，列（index）是橫軸的類別、欄（columns）是不同顏色的組別，
+                   例如 pd.crosstab(df['Region'], df['Location']) 或 df.pivot_table(...)
+        stacked  : False → 並排；True → 堆疊
+        ax       : 畫在哪個子圖；不給就開一張新圖
+        xlabel / ylabel / title : 座標軸名稱、標題
+    回傳
+        ax
+    例
+        t = df.pivot_table(index='Region', columns='Location', values='Food', aggfunc='mean')
+        sk.bar_grouped(t)
+    """
+    table = pd.DataFrame(table)
+    k = len(table.columns)
+    x = np.arange(len(table.index))
+    width = 0.8 / (1 if stacked else k)
+    ax = new_ax(ax, figsize=(max(7, 1.2 * len(x) * (1 if stacked else max(1, k / 2))), 5))
+    bottom = np.zeros(len(x))
+    for j, col in enumerate(table.columns):
+        h = table[col].fillna(0).to_numpy(float)
+        if stacked:
+            ax.bar(x, h, width, bottom=bottom, label=str(col), edgecolor=EDGE)
+            bottom += h
+        else:
+            ax.bar(x + (j - (k - 1) / 2) * width, h, width, label=str(col), edgecolor=EDGE)
+    ax.set_xticks(x)
+    ax.set_xticklabels([str(i) for i in table.index])
+    if k > 1:
+        ax.legend(title=None if table.columns.name is None else str(table.columns.name))
+    ax.set_xlabel(xlabel or ("" if table.index.name is None else str(table.index.name)))
+    if ylabel:
+        ax.set_ylabel(ylabel)
+    if title:
+        ax.set_title(title)
+    return ax

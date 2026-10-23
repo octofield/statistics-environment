@@ -125,6 +125,24 @@ def run(verbose=True):
     within = sum(mu - 2 * sd <= v <= mu + 2 * sd for v in HEIGHTS) / len(HEIGHTS)
     check("chebyshev k=2", cheb.loc[2, "實際比例"], round(within, 4))
 
+    # 多個變數：跟 pandas / numpy 直接算的結果比對
+    import numpy as np
+    weights = [h * 0.4 - 2 + (i % 5) for i, h in enumerate(HEIGHTS)]
+    multi = pd.DataFrame({"身高": HEIGHTS, "體重": weights, "組": ["A", "B"] * 10})
+    with redirect_stdout(io.StringIO()):
+        cols = sk.describe_cols(multi, ["身高", "體重"])
+        by = sk.describe_by(multi, "身高", by="組")
+        r = sk.corr_matrix(multi, ["身高", "體重"])
+        pcov = sk.corr_matrix(multi, ["身高", "體重"], kind="cov", ddof=0)
+        sk.scatter_matrix(multi, ["身高", "體重"])
+        sk.scatter_by(multi, "身高", "體重", by="組")
+        sk.box_by(multi, "身高", by="組")
+        sk.bar_grouped(multi.pivot_table(index="組", values=["身高", "體重"]), stacked=True)
+    check("describe_cols Q1", cols.loc["Q1", "身高"], round(q[0], 4))
+    check("describe_by 平均數", by.loc["B", "平均數"], round(multi.groupby("組")["身高"].mean()["B"], 4))
+    check("corr_matrix r", r.loc["身高", "體重"], round(np.corrcoef(HEIGHTS, weights)[0, 1], 4))
+    check("corr_matrix 母體共變異數", pcov.loc["身高", "體重"], round(np.cov(HEIGHTS, weights, ddof=0)[0, 1], 4))
+
     if verbose:
         if failures:
             print("statkit 自我測試失敗：")

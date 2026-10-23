@@ -35,12 +35,16 @@ function ConvertTo-ArgString([string[]]$Items) {
 
 function Get-BuildArguments {
     <# 依精靈的選項組出 build.ps1 的參數（string[]）。$Options 欄位：
-       Out, StudentId, StudentName, HandoutsDir, HomeworkDir, Docs, SyncVSCode, CleanDownloads #>
+       Out, StudentId, StudentName, HandoutsDir, HomeworkDir, VSCode, VSCodeExtras, JupyterLab, Docs, SyncVSCode, CleanDownloads
+       （VSCode / VSCodeExtras / JupyterLab 沒給就當作要裝） #>
     param($Options)
     $a = @("-Out", $Options.Out)
     if ($Options.StudentId -and $Options.StudentName) { $a += @("-StudentId", $Options.StudentId, "-StudentName", $Options.StudentName) }
     # 沒選資料夾就傳空字串，build.ps1 會略過（不要用 repo 預設的資料夾）
     $a += @("-HandoutsDir", [string]$Options.HandoutsDir, "-HomeworkDir", [string]$Options.HomeworkDir)
+    if ($Options.VSCode -eq $false) { $a += "-SkipVSCode" }
+    elseif ($Options.VSCodeExtras -eq $false) { $a += "-SkipExtraExtensions" }
+    if ($Options.JupyterLab -eq $false) { $a += "-SkipJupyterLab" }
     if (-not $Options.Docs) { $a += "-SkipDocs" }
     if (-not $Options.SyncVSCode) { $a += "-NoLocalSettings" }
     if ($Options.CleanDownloads) { $a += "-CleanDownloads" }
@@ -70,9 +74,20 @@ function Get-FreeSpaceGB([string]$Path) {
     return $null
 }
 
-function Get-RequiredGB([bool]$Docs) {
-    # 打包後的大小（不含下載快取）：基本約 2.0 GB，離線文件約 0.65 GB
-    return [math]::Round(2.0 + $(if ($Docs) { 0.65 } else { 0 }), 1)
+# 各元件建立後的大約大小（GB），精靈的「選擇元件」頁也顯示這些數字
+$script:ComponentGB = @{ Base = 0.55; VSCode = 1.2; VSCodeExtras = 0.03; JupyterLab = 0.1; Docs = 0.65 }
+
+function Get-RequiredGB {
+    <# 打包後的大小（不含下載快取）。$Options 欄位：VSCode、VSCodeExtras、JupyterLab、Docs（沒給的元件當作要裝，Docs 除外） #>
+    param($Options)
+    $gb = $script:ComponentGB.Base
+    if ($Options.VSCode -ne $false) {
+        $gb += $script:ComponentGB.VSCode
+        if ($Options.VSCodeExtras -ne $false) { $gb += $script:ComponentGB.VSCodeExtras }
+    }
+    if ($Options.JupyterLab -ne $false) { $gb += $script:ComponentGB.JupyterLab }
+    if ($Options.Docs) { $gb += $script:ComponentGB.Docs }
+    return [math]::Round($gb, 1)
 }
 
 function Get-BuildProgress {

@@ -9,14 +9,11 @@ openpyxl
 xlrd
 seaborn
 
-# notebook 環境
-jupyterlab
-notebook
+# notebook 核心（VS Code 的 Jupyter 擴充與匯出 HTML 都要用；JupyterLab 在 requirements-jupyterlab.txt）
 ipykernel
 ipywidgets
 nbconvert
 nbformat
-python-lsp-server
 
 # 打包時抽講義 PDF 文字
 pypdf

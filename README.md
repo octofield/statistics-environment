@@ -10,11 +10,11 @@
 
 ## 功能
 
-- **一個精靈搞定**：圖形介面一步一步設定學號姓名、講義與作業、選項，自動下載安裝，完成後可以直接複製到隨身碟
+- **一個精靈搞定**：圖形介面一步一步設定學號姓名、講義與作業、要裝哪些元件、選項，自動下載安裝，完成後可以直接複製到隨身碟
 - **完全離線、換電腦也能用**：全部用相對路徑，換磁碟代號、換電腦都不用重新設定；不會讀到考場電腦上的套件
 - **編輯器**：可攜式 VS Code（繁體中文介面、Python / Jupyter / Pylance、PDF 與 Excel 檢視），JupyterLab 當備案
-- **statkit 工具**：機率字串（`sk.prob(sk.Poisson(6.6), 'X >= 10')`，自動處理離散分布的 ≥ 要減 1）、互動式分布計算機 `sk.explore()`（會產生課程寫法的 scipy 程式碼）、敘述統計、統計圖、報童模型、模擬、資料速覽 `sk.peek()`
-- **文件**：讀入資料與整理、公式總表、Markdown 與 LaTeX 語法、各章筆記、常見問題；snippets 都有參數說明
+- **statkit 工具**：機率字串（`sk.prob(sk.Poisson(6.6), 'X >= 10')`，自動處理離散分布的 ≥ 要減 1）、互動式分布計算機 `sk.explore()`（會產生課程寫法的 scipy 程式碼）、敘述統計、統計圖、多個變數一起分析（分組統計、相關矩陣、散佈圖矩陣、分組長條圖）、報童模型、模擬、資料速覽 `sk.peek()`
+- **文件**：讀入資料與整理、公式總表、Markdown 與 LaTeX 語法、各章筆記、常見問題；snippets 都有參數說明（含 groupby、樞紐分析表、交叉表等多變數寫法）
 - **考試流程**：新增考卷（自動用學號姓名命名）、匯出 HTML（檢查檔名、執行順序、錯誤，並自動備份）、環境檢查
 
 ## 快速開始
@@ -38,7 +38,7 @@
 
 1. 本頁上方「**Code** → **Download ZIP**」，解壓縮
 2. 雙擊 **`setup_mac.command`**。如果出現「無法打開，因為它來自未識別的開發者」，請在 Finder 對它按右鍵 →「**打開**」；或打開「終端機」，輸入 `bash ` 再把檔案拖進去，按 Enter
-3. 照終端機的問題回答（學號姓名、講義與作業、離線文件、建立位置、要不要複製到隨身碟）
+3. 照終端機的問題回答（學號姓名、講義與作業、要裝哪些元件、建立位置、要不要複製到隨身碟）
 4. **把隨身碟插到任何一台 Windows 電腦，執行一次 `4_環境檢查.bat`**。第一次執行會安裝 VS Code 擴充（不需要網路，約 1 分鐘），並確認環境在 Windows 上都能用
 
 注意：
@@ -61,18 +61,28 @@ powershell -ExecutionPolicy Bypass -File build.ps1 -Out D:\STAT_EXAM -StudentId 
 | `-Out` | 建立位置（預設 `build\STAT_EXAM`） |
 | `-StudentId` / `-StudentName` | 學號姓名（不給的話，第一次「新增考卷」時會請你輸入） |
 | `-HandoutsDir` / `-HomeworkDir` | 講義、作業資料夾（預設是 repo 的 `handouts/`、`homework/`，沒有就略過） |
+| `-SkipVSCode` | 不裝可攜式 VS Code（少約 1.2 GB；只能用 JupyterLab 作答） |
+| `-SkipExtraExtensions` | 不裝附加的 VS Code 擴充（`config/extensions-extra.txt`：PDF、Excel 檢視、Rainbow CSV、Code Runner） |
+| `-SkipJupyterLab` | 不裝 JupyterLab（`requirements-jupyterlab.txt`），也不放 `2_啟動JupyterLab.bat` |
 | `-SkipDocs` | 不下載離線文件（少 0.65 GB、2 萬個檔案，複製到隨身碟快很多） |
 | `-NoLocalSettings` | 不同步這台電腦的 VS Code 設定 |
 | `-CleanDownloads` | 完成後刪除下載快取（約 1 GB） |
-| `-SkipVSCode` / `-SkipCheck` / `-StrictCheck` | 不裝 VS Code／不跑環境檢查／環境檢查失敗時回傳錯誤（CI 用） |
+| `-SkipCheck` / `-StrictCheck` | 不跑環境檢查／環境檢查失敗時回傳錯誤（CI 用） |
+
+`-Skip…` 的元件不會從已經建立好的環境裡移除；要乾淨的環境請換一個建立位置。Mac 版的 `setup/build_mac.py` 有對應的 `--skip-vscode`、`--skip-extra-extensions`、`--skip-jupyterlab`、`--skip-docs`。
 
 ## 精靈會做什麼
 
 1. **歡迎**：說明與考試規定提醒
 2. **學號姓名**：用在考卷檔名和抬頭（可以先略過）
 3. **講義與作業**（選填）：選你自己的資料夾，只會複製到你的電腦和隨身碟；講義 PDF 會轉成文字，方便在 VS Code 搜尋
-4. **選項**：建立位置、離線文件（多約 2 萬個檔案，要複製到隨身碟的話會久很多）、同步 VS Code 設定（AI 相關設定一律排除）、刪除下載快取、複製到隨身碟
-5. **確認** → 6. **建立**（顯示進度，可以停止，下次會接著做）→ 7. **完成**（環境檢查結果、使用說明、紀錄檔）
+4. **選擇元件**（預設全裝，每一項都寫了不裝會怎樣；VS Code 和 JupyterLab 至少留一個）：
+   - 可攜式 VS Code 與必要擴充（約 1.2 GB）：不裝就只能用 JupyterLab 作答
+   - 附加 VS Code 擴充（約 25 MB）：不裝就不能在 VS Code 裡開講義 PDF、Excel
+   - JupyterLab（約 0.1 GB）：不裝的話 VS Code 出問題時就沒有備案
+   - 離線文件（約 0.65 GB、2 萬個檔案）：不裝就只能用滑鼠停在函式上看說明，但複製到隨身碟快很多
+5. **選項**：建立位置、同步 VS Code 設定（AI 相關設定一律排除）、刪除下載快取、複製到隨身碟
+6. **確認** → 7. **建立**（顯示進度，可以停止，下次會接著做）→ 8. **完成**（環境檢查結果、使用說明、紀錄檔）
 
 ### 系統需求
 
@@ -111,6 +121,7 @@ STAT_EXAM/
 | 覺得太慢 | 紀錄檔最後有「各步驟耗時」，回報時附上；複製到隨身碟最花時間的是檔案數量，不需要離線文件就取消勾選 |
 | 學校 / 公司網路有 proxy | 換到一般網路（例如手機熱點）再執行 |
 | 想更新環境 | 選同一個建立位置再跑一次精靈；`exam\` 裡的考卷不會被刪 |
+| 舊版建立的隨身碟出現 `uv trampoline failed to canonicalize script path` | 舊版用 uv 產生的 `jupyter.exe` 等執行檔記的是建立時的路徑，複製到隨身碟後就不能用。用新版精靈重新建立；或在 `4_環境檢查.bat` 的同一個資料夾開命令提示字元，執行 `call workspace\tools\env.bat` 再執行 `"%PYTHON%" workspace\tools\fix_launchers.py`（舊版的隨身碟要先把新版的 `tools\fix_launchers.py` 複製到 `workspace\tools\`） |
 
 精靈的紀錄檔在 `%LOCALAPPDATA%\STAT_EXAM_Setup\logs\`（不含你的講義、作業內容），回報問題時可以附上。
 

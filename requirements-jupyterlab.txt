@@ -1,0 +1,4 @@
+# JupyterLab（備案編輯器）：精靈取消勾選 JupyterLab（build.ps1 -SkipJupyterLab）時不裝
+jupyterlab
+notebook
+python-lsp-server

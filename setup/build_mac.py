@@ -5,7 +5,8 @@
     uv run --no-project --python 3.13 --with pypdf setup/build_mac.py --out ~/Desktop/STAT_EXAM [選項]
 
 Mac 上沒辦法執行 Windows 程式，所以跟 build.ps1 有三個地方不一樣：
-- 套件：用 uv 跨平台安裝 Windows 版的 wheel（--python-platform x86_64-pc-windows-msvc）
+- 套件：用 uv 跨平台安裝 Windows 版的 wheel（--python-platform x86_64-pc-windows-msvc）；
+  python\\Scripts 的 jupyter.exe 等執行檔由 tools/finish_setup.py 第一次在 Windows 上產生
 - VS Code 擴充：只下載 Windows 版 .vsix 到 VSCode/data/pending-vsix/，第一次在 Windows 上執行
   1_啟動VSCode.bat 或 4_環境檢查.bat 時由 tools/finish_setup.py 離線安裝
 - 環境檢查：要到 Windows 上執行 4_環境檢查.bat
@@ -218,7 +219,10 @@ def main():
     ap.add_argument("--student-name", default="")
     ap.add_argument("--handouts", type=Path, default=REPO / "handouts", help="講義資料夾（沒有就略過）")
     ap.add_argument("--homework", type=Path, default=REPO / "homework", help="作業資料夾（沒有就略過）")
-    ap.add_argument("--skip-vscode", action="store_true")
+    # 元件（跟 build.ps1 一樣）：取消勾選不會移除之前已經建立好的部分
+    ap.add_argument("--skip-vscode", action="store_true", help="不裝可攜式 VS Code（只用 JupyterLab）")
+    ap.add_argument("--skip-extra-extensions", action="store_true", help="不裝附加的 VS Code 擴充（config/extensions-extra.txt）")
+    ap.add_argument("--skip-jupyterlab", action="store_true", help="不裝 JupyterLab，也不放 2_啟動JupyterLab.bat")
     ap.add_argument("--skip-docs", action="store_true")
     ap.add_argument("--clean-downloads", action="store_true", help="完成後刪除下載快取（build/downloads，約 1 GB）")
     ap.add_argument("--usb", help="完成後複製到這個隨身碟（例如 /Volumes/USB）")
@@ -269,8 +273,12 @@ def main():
     # ------------------------------------------------------------ 2. 套件
     step("2. 安裝套件")
     # 在 Mac 上直接裝 Windows 版的 wheel；--compile-bytecode 用這個 Python 3.x 編譯，Windows 上可以直接用
+    # --link-mode copy：預設會從 uv 的快取 clone / hardlink，建立位置在別的磁碟（例如隨身碟）時會失敗
+    reqs = ["-r", REPO / "requirements.txt"]
+    if not args.skip_jupyterlab:
+        reqs += ["-r", REPO / "requirements-jupyterlab.txt"]
     run(uv, "pip", "install", "--target", site, "--python-platform", WIN_PLATFORM, "--python-version", f"3.{minor}",
-        "--python", sys.executable, "--only-binary", ":all:", "--compile-bytecode", "-r", REPO / "requirements.txt")
+        "--python", sys.executable, "--only-binary", ":all:", "--link-mode", "copy", "--compile-bytecode", *reqs)
     # --target 會把 wheel 的資料檔（JupyterLab 的網頁、kernel 設定、etc/jupyter…）放在 site-packages 底下，
     # 要搬到 sys.prefix（python\）底下 Jupyter 才找得到；bin\ 是 Mac 格式的執行檔，在 Windows 上沒用
     for name in ("share", "etc"):
@@ -320,7 +328,9 @@ def main():
         current["locale"] = locale
         current.setdefault("enable-crash-reporter", False)
         argv_out.write_text(json.dumps(current, ensure_ascii=False, indent=4), encoding="utf-8")
-        wanted = [line.strip() for line in (REPO / "config" / "extensions.txt").read_text(encoding="utf-8").splitlines() if line.strip()]
+        ext_files = ["extensions.txt"] + ([] if args.skip_extra_extensions else ["extensions-extra.txt"])
+        wanted = [line.strip() for f in ext_files
+                  for line in (REPO / "config" / f).read_text(encoding="utf-8").splitlines() if line.strip()]
         download_extensions(vs_dir, wanted)
 
     # ------------------------------------------------------------ 4. workspace
@@ -380,6 +390,9 @@ def main():
     # ------------------------------------------------------------ 6. 啟動器
     step("6. 啟動器")
     for bat in (REPO / "launchers").glob("*.bat"):
+        # 沒裝的編輯器就不放它的啟動檔
+        if (args.skip_vscode and bat.name.startswith("1_")) or (args.skip_jupyterlab and bat.name.startswith("2_")):
+            continue
         shutil.copy2(bat, out / bat.name)                       # 原樣複製，保留 CRLF
     shutil.copy2(REPO / "templates" / "使用說明.txt", out / "使用說明.txt")
     # 套件清單（相當於 pip freeze）：從 *.dist-info 的資料夾名稱取得

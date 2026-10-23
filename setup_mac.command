@@ -68,8 +68,31 @@ if [ $# -eq 0 ]; then
     ARGS+=(--handouts "$HANDOUTS" --homework "$HOMEWORK")
     [ -n "$HANDOUTS$HOMEWORK" ] && echo "講義、作業通常有著作權或個人資料，請不要上傳到公開的地方。"
 
-    if ! ask_yes "下載離線文件？（pandas / numpy / scipy / Python；+0.65 GB、約 2 萬個檔案，複製到隨身碟會久很多）" Y; then
-        ARGS+=(--skip-docs)
+    echo
+    echo "要安裝的元件（預設全裝）："
+    echo "  • 可攜式 VS Code 與必要擴充（約 1.2 GB）：主力編輯器"
+    echo "  • 附加 VS Code 擴充（約 25 MB）：PDF 檢視、Excel 檢視、Rainbow CSV、Code Runner"
+    echo "  • JupyterLab（約 0.1 GB）：在瀏覽器作答的備案"
+    echo "  • 離線文件（約 0.65 GB、2 萬個檔案）：pandas / numpy / scipy / Python 官方文件"
+    if ! ask_yes "全部安裝？（選 n 逐項決定）" Y; then
+        while :; do
+            COMP_ARGS=()
+            VSCODE=1; LAB=1
+            if ! ask_yes "裝 VS Code？（不裝：只能用 JupyterLab 作答，匯出 HTML 改用 3_匯出HTML.bat）" Y; then
+                COMP_ARGS+=(--skip-vscode); VSCODE=0
+            elif ! ask_yes "裝附加 VS Code 擴充？（不裝：講義 PDF、Excel 不能在 VS Code 裡打開）" Y; then
+                COMP_ARGS+=(--skip-extra-extensions)
+            fi
+            if ! ask_yes "裝 JupyterLab？（不裝：VS Code 出問題時沒有備案，有些課程規定要用 Jupyter Lab）" Y; then
+                COMP_ARGS+=(--skip-jupyterlab); LAB=0
+            fi
+            if [ $VSCODE -eq 1 ] || [ $LAB -eq 1 ]; then break; fi
+            echo "VS Code 和 JupyterLab 至少要選一個，不然沒有地方可以寫考卷。請重新選擇。"
+        done
+        ARGS+=(${COMP_ARGS[@]+"${COMP_ARGS[@]}"})
+        if ! ask_yes "下載離線文件？（不裝：只能用滑鼠停在函式上看說明；好處是複製到隨身碟快很多）" Y; then
+            ARGS+=(--skip-docs)
+        fi
     fi
 
     OUT="$HOME/Desktop/STAT_EXAM"
