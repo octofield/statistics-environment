@@ -18,6 +18,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: 確認 tag 跟 VERSION 一致
+        shell: pwsh
+        run: |
+          $v = (Get-Content -Raw VERSION).Trim()
+          if ("${{ github.ref_name }}" -ne "v$v") { throw "tag ${{ github.ref_name }} 跟 VERSION（$v）不一致：請先改 VERSION 再打 tag" }
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"

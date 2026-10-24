@@ -4,28 +4,27 @@
 【啟動】
   1_啟動VSCode.bat      主力編輯器（可攜式 VS Code，已關閉所有 AI 功能），會自動打開索引
   2_啟動JupyterLab.bat  備案（規範指定的 Jupyter Lab，會開瀏覽器；黑色視窗不要關）
-  3_匯出HTML.bat        把 .ipynb 拖到這個檔案上，或雙擊後從 exam\ 選；會檢查檔名、執行順序、錯誤，並備份到 exam\_backup\
-  4_環境檢查.bat        考前跑一次：套件、statkit、中文字型、HTML 匯出、AI 擴充
-  5_新增考卷.bat        確認學號姓名 → 輸入考試名稱 → 從乾淨的範本建立 exam\學號_姓名_名稱.ipynb 並打開
+  3_匯出HTML.bat        把 .ipynb 拖到這個檔案上，或雙擊後從 exam\ 選；會檢查有沒有寫學號、執行順序、錯誤，並備份到 exam\_backup\
+  4_環境檢查.bat        考前跑一次：版本、套件、statkit、中文字型、HTML 匯出、AI 擴充
+  5_匯入考卷.bat        選老師給的 .ipynb → 複製到 exam\（保留原檔名）→ 最上面加上 import 與設定 → 打開
 
-  VS Code 裡也可以：Ctrl+Shift+P → 輸入「執行工作」→ 新增考卷 / 匯出目前的 notebook 成 HTML / 環境檢查
+  VS Code 裡也可以：Ctrl+Shift+P → 輸入「執行工作」→ 匯入考卷 / 匯出目前的 notebook 成 HTML / 環境檢查
   建立時沒有勾選 VS Code 或 JupyterLab 的話，就不會有對應的 1_ 或 2_；想加回來，用同一個建立位置再跑一次精靈。
 
-【確認學號姓名】（第一次用這個隨身碟時一定要做）
-  學號姓名會用在考卷檔名（B12345678_王小明_期中考.ipynb）和考卷抬頭，錯了會影響繳交。
-  1. 雙擊 5_新增考卷.bat（或 VS Code「執行工作」→「新增考卷」，在下方終端機回答）
-  2. 畫面會顯示目前的學號、姓名，問「以上學號姓名正確嗎？(Y/n)」
-     - 正確：直接按 Enter
-     - 不正確：輸入 n，再輸入正確的學號、姓名；會存到 workspace\tools\student.json，下次就是對的
-     - 還是範例資料（B12345678 / 王小明）或空白時，會直接要求輸入
-  3. 學號格式不是「1 個英文字母 + 8 個數字」會提醒你再確認一次
-  4. 建立好之後，看一下檔名和考卷第一格的學號姓名是否正確
-  也可以直接用記事本打開 workspace\tools\student.json 修改。
+【匯入考卷】（考試時老師會給一份 .ipynb）
+  1. 把考卷下載下來（從 COOL 下載的通常在「下載」資料夾）
+  2. 雙擊 5_匯入考卷.bat，在跳出的視窗選這份 .ipynb（也可以直接把檔案拖到 5_匯入考卷.bat 上）
+  3. 會複製到 workspace\exam\（檔名跟老師給的一樣），在最上面加一格 import 與初始設定，並用 VS Code 打開
+     - 先執行最上面那一格，再開始作答
+     - exam\ 裡已經有同名的考卷時不會覆蓋：直接 Enter 打開已經有的那份，輸入 n 另存一份新的
+  4. 依老師的格式在考卷裡寫上學號、姓名（不會自動幫你填）
+     - 匯入後畫面會提醒你學號姓名；匯出 HTML 時如果考卷裡找不到你的學號，也會警告
+     - 學號姓名存在 workspace\tools\student.json，可以用記事本修改
 
 【資料夾】
   workspace\00_索引.ipynb   所有資源的入口、考試流程、快捷鍵、snippets 列表、分布計算機
   workspace\常見問題.md     遇到問題先看這裡（VS Code 開啟後按 Ctrl+Shift+V 看排版好的版本）
-  workspace\exam\           作答區；_backup\ 是每次匯出時的備份
+  workspace\exam\           作答區（匯入的考卷在這裡）；_backup\ 是每次匯出時的備份
   workspace\data\           考試資料放這裡（先用 sk.peek('../data/檔名.xlsx') 看內容）
   workspace\notes\          公式總表、Markdown 與 LaTeX 語法、各章速查筆記
   workspace\handouts\       講義（_text\ 是 PDF 文字，VS Code Ctrl+Shift+F 可搜尋）
@@ -37,8 +36,13 @@
 【考前演練】
   1. 拔網路線 / 關 Wi-Fi
   2. 從隨身碟雙擊 4_環境檢查.bat，全部 OK
-  3. 用 5_ 開一份考卷（順便確認學號姓名），在 1_（VS Code）和 2_（JupyterLab）各寫一題、匯出 HTML、用瀏覽器打開檢查
+  3. 用 5_ 匯入一份作業的 .ipynb 當成考卷，在 1_（VS Code）和 2_（JupyterLab）各寫一題、匯出 HTML、用瀏覽器打開檢查
   4. 換一台電腦（磁碟代號不同）再試一次
+
+【版本與更新】
+  - 目前的版本：4_環境檢查.bat 第一行會顯示（也寫在 workspace\tools\VERSION）
+  - 有新版時：下載新版的初始化精靈（Setup.exe 或 zip），選「同一個建立位置」再執行一次，並勾選「複製到隨身碟」
+    exam\ 裡的考卷、data\ 裡自己放的檔案不會被刪除；精靈開啟時如果 GitHub 上有新版會提示你
 
 【注意】
   - 匯出的 HTML 用網路載入公式字型，斷網時本機預覽公式可能顯示成原始 LaTeX，上傳後正常

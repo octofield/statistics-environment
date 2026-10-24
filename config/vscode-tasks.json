@@ -3,11 +3,11 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "新增考卷",
-            "detail": "先確認學號姓名（在下方終端機回答），再從乾淨的範本建立 exam/學號_姓名_考試名稱.ipynb 並打開",
+            "label": "匯入考卷",
+            "detail": "選老師給的 .ipynb（選檔視窗預設開在「下載」），複製到 exam/（保留原檔名）、在最上面加上 import 與設定，再打開",
             "type": "process",
             "command": "${workspaceFolder}/../__WINPY__/python/python.exe",
-            "args": ["${workspaceFolder}/tools/new_exam.py", "${input:examName}", "--open"],
+            "args": ["${workspaceFolder}/tools/import_exam.py", "--open"],
             "options": { "env": { "PYTHONUTF8": "1", "PYTHONNOUSERSITE": "1" } },
             "presentation": { "reveal": "always", "focus": true, "panel": "dedicated", "clear": true },
             "problemMatcher": []
@@ -42,8 +42,5 @@
             "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
             "problemMatcher": []
         }
-    ],
-    "inputs": [
-        { "id": "examName", "type": "promptString", "description": "考試名稱（例如 期中考、小考1）", "default": "期中考" }
     ]
 }

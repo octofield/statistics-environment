@@ -91,6 +91,47 @@ def check_scripts():
             fail(p, f"Python 語法錯誤：{e}")
 
 
+def check_import_exam():
+    """匯入考卷：保留原檔名、setup cell 只加一次、原本的 cell 不動、同名檔案不覆蓋。"""
+    import tempfile
+
+    import nbformat
+    sys.path.insert(0, str(ROOT / "tools"))
+    import import_exam
+
+    src_file = ROOT / "tools" / "import_exam.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        teacher = nbformat.v4.new_notebook(cells=[nbformat.v4.new_markdown_cell("# Midterm\n\nStudent ID:"),
+                                                   nbformat.v4.new_code_cell("x = 1")])
+        nbformat.write(teacher, tmp / "Stat115_midterm.ipynb")
+        exam = tmp / "exam"
+        first = import_exam.import_exam(tmp / "Stat115_midterm.ipynb", exam, ask=lambda _: "")
+        nb = nbformat.read(first, as_version=4)
+        setup = [c for c in nb.cells if import_exam.SETUP_MARK in c.source]
+        if first.name != "Stat115_midterm.ipynb":
+            fail(src_file, f"沒有保留原檔名：{first.name}")
+        if len(setup) != 1 or nb.cells[0] is not setup[0]:
+            fail(src_file, "setup cell 沒有加在最上面")
+        if [c.source for c in nb.cells[1:]] != ["# Midterm\n\nStudent ID:", "x = 1"]:
+            fail(src_file, "原本的 cell 被改動了")
+        # 學生已經開始作答後又匯入一次：Enter → 打開原本那份（不覆蓋）；n → 另存 _2
+        nb.cells.append(nbformat.v4.new_code_cell("answer = 42"))
+        nbformat.write(nb, first)
+        again = import_exam.import_exam(tmp / "Stat115_midterm.ipynb", exam, ask=lambda _: "")
+        if again != first or "answer = 42" not in again.read_text(encoding="utf-8"):
+            fail(src_file, "同名考卷被覆蓋了")
+        copy = import_exam.import_exam(tmp / "Stat115_midterm.ipynb", exam, ask=lambda _: "n")
+        if copy.name != "Stat115_midterm_2.ipynb":
+            fail(src_file, f"另存的檔名不對：{copy.name}")
+        # 已經在 exam/ 裡的檔案：原地處理，setup cell 不會重複加
+        import_exam.import_exam(first, exam, ask=lambda _: "")
+        if sum(import_exam.SETUP_MARK in c.source for c in nbformat.read(first, as_version=4).cells) != 1:
+            fail(src_file, "setup cell 重複加了")
+    if not re.fullmatch(r"\d+\.\d+\.\d+", (ROOT / "VERSION").read_text(encoding="utf-8").strip()):
+        fail(ROOT / "VERSION", "版本號要是 X.Y.Z 的格式")
+
+
 def check_notebooks():
     import os
 
@@ -113,6 +154,8 @@ if __name__ == "__main__":
     check_config()
     print("檢查 PowerShell / bat / cmd…")
     check_scripts()
+    print("檢查匯入考卷、版本號…")
+    check_import_exam()
     if "--fast" not in sys.argv:
         print("執行 notebook…")
         check_notebooks()

@@ -46,6 +46,9 @@ if ([Console]::IsOutputRedirected) {
 }
 $Repo = $PSScriptRoot
 $Dl = Join-Path $Repo "build\downloads"
+$Version = (Get-Content -Raw "$Repo\VERSION").Trim()
+# 舊版留下、現在已經不用的檔案（相對於 STAT_EXAM\）；精靈複製到隨身碟前也會刪掉隨身碟上的這些
+$LegacyFiles = @("5_新增考卷.bat", "workspace\tools\new_exam.py", "workspace\tools\templates")
 New-Item -ItemType Directory -Force $Dl, $Out | Out-Null
 
 # 每一步的耗時，最後印成總表（回報「很慢」時看 log 就知道慢在哪裡）
@@ -67,6 +70,7 @@ function Step($msg) {
 
 # 背景預先下載（檔名 → curl 的 Process），讓下載跟安裝套件同時進行
 $Prefetch = @{}
+$extFailed = @()      # 沒裝好的 VS Code 擴充（Marketplace 暫時無法連線時），最後才回報失敗
 trap { foreach ($p in $Prefetch.Values) { if (-not $p.HasExited) { $p.Kill() } }; break }
 
 function Get-CurlArgs($url, $out) {
@@ -140,6 +144,8 @@ function Expand-Zip($zip, $dst) {
     New-Item -ItemType Directory -Force $dst | Out-Null
     Run "$env:SystemRoot\System32\tar.exe" -xf $zip -C $dst    # Windows 內建 bsdtar，比 Expand-Archive 快很多
 }
+
+Write-Host "統計學考試環境 v$Version"
 
 # ------------------------------------------------------------------ 1. WinPython
 Step "1. WinPython"
@@ -243,16 +249,37 @@ if (-not $SkipVSCode) {
     $syncArgs = @("$Repo\tools\sync_vscode_settings.py", "--vscode-data", "$vsDir\data", "--config", "$Repo\config")
     if ($NoLocalSettings) { $syncArgs += "--no-local" }
     Run $Py @syncArgs
-    $installedExt = (& "$vsDir\bin\code.cmd" --list-extensions) -join "`n"
     $extFiles = @("$Repo\config\extensions.txt")
     if (-not $SkipExtraExtensions) { $extFiles += "$Repo\config\extensions-extra.txt" }
-    $missing = @(Get-Content $extFiles | ForEach-Object { $_.Trim() } |
-        Where-Object { $_ -and $installedExt -notmatch [regex]::Escape($_) })
+    $wantedExt = @(Get-Content $extFiles | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    function Get-MissingExtensions {
+        $installed = @(& "$vsDir\bin\code.cmd" --list-extensions | ForEach-Object { $_.Trim().ToLower() })
+        $global:LASTEXITCODE = 0
+        return @($wantedExt | Where-Object { $installed -notcontains $_.ToLower() })
+    }
+    $missing = Get-MissingExtensions
+    # VS Code Marketplace 偶爾會回 HTTP 503（暫時無法服務）：重試，後兩次一個一個裝，避免同時太多請求
+    $waits = @(0, 20, 60)
+    for ($try = 1; $try -le $waits.Count -and $missing; $try++) {
+        if ($try -eq 1) {
+            # 第一次一起裝：每呼叫一次 code.cmd 就要冷啟動一次 VS Code
+            Write-Host "安裝擴充：$($missing -join ', ')"
+            & "$vsDir\bin\code.cmd" @($missing | ForEach-Object { "--install-extension", $_ }) --force
+        } else {
+            Write-Host "還有 $($missing.Count) 個擴充沒裝好（VS Code Marketplace 可能暫時無法連線），$($waits[$try - 1]) 秒後重試（第 $try / $($waits.Count) 次）…"
+            Start-Sleep -Seconds $waits[$try - 1]
+            foreach ($id in $missing) { & "$vsDir\bin\code.cmd" --install-extension $id --force }
+        }
+        $global:LASTEXITCODE = 0
+        $missing = Get-MissingExtensions
+    }
     if ($missing) {
-        # 一次裝完：每呼叫一次 code.cmd 就要冷啟動一次 VS Code
-        Write-Host "安裝擴充：$($missing -join ', ')"
-        $extArgs = $missing | ForEach-Object { "--install-extension", $_ }
-        Run "$vsDir\bin\code.cmd" @extArgs --force
+        # 備案：跟 Mac 版一樣直接下載 .vsix（curl 會自動重試 503），第 7 步前由 finish_setup.py 離線安裝
+        Write-Host "改用直接下載 .vsix：$($missing -join ', ')"
+        $env:STAT_VS_DIR = $vsDir; $env:STAT_EXT_IDS = $missing -join ","
+        & $Py -c "import os, sys; from pathlib import Path; sys.path.insert(0, r'$Repo\setup'); import build_mac; build_mac.download_extensions(Path(os.environ['STAT_VS_DIR']), os.environ['STAT_EXT_IDS'].split(','))"
+        if ($LASTEXITCODE -ne 0) { $extFailed = $missing; Write-Warning "下載 .vsix 也失敗：$($missing -join ', ')" }
+        $global:LASTEXITCODE = 0
     }
     # 語言包快取（啟動器每次啟動前也會依目前的磁碟代號重建，第一次啟動就是中文）
     Run $Py "$Repo\tools\vscode_locale.py" "$vsDir\data"
@@ -276,10 +303,11 @@ foreach ($pair in @(@("handouts", $HandoutsDir), @("homework", $HomeworkDir))) {
         Write-Host "略過$what（找不到資料夾：$src）"
     }
 }
-New-Item -ItemType Directory -Force "$Ws\exam", "$Ws\data", "$Ws\homework", "$Ws\fonts", "$Ws\.vscode", "$Ws\tools\templates" | Out-Null
-# 乾淨的考卷範本（{學號}、{姓名} 由 5_新增考卷 填入）與學生資料
-Copy-Item "$Repo\templates\exam_template.ipynb" "$Ws\tools\templates\exam_template.ipynb" -Force
-# 學號姓名：參數 → repo 的 config\student.json → 範本（之後「新增考卷」時會再請使用者確認）
+New-Item -ItemType Directory -Force "$Ws\exam", "$Ws\data", "$Ws\homework", "$Ws\fonts", "$Ws\.vscode" | Out-Null
+# 舊版的「從空白範本新增考卷」已經改成「匯入老師給的考卷」，更新時把舊檔刪掉（exam\ 裡的考卷不動）
+foreach ($old in $LegacyFiles) { Remove-Item -LiteralPath (Join-Path $Out $old) -Recurse -Force -ErrorAction SilentlyContinue }
+Copy-Item "$Repo\VERSION" "$Ws\tools\VERSION" -Force
+# 學號姓名（只用來在匯入考卷後提醒、匯出 HTML 時檢查考卷裡有沒有寫）：參數 → repo 的 config\student.json → 範例
 if ($StudentId -and $StudentName) {
     [IO.File]::WriteAllText("$Ws\tools\student.json",
         (@{ id = $StudentId.Trim().ToUpper(); name = $StudentName.Trim() } | ConvertTo-Json), (New-Object Text.UTF8Encoding $false))
@@ -287,7 +315,7 @@ if ($StudentId -and $StudentName) {
 } elseif (Test-Path "$Repo\config\student.json") {
     Copy-Item "$Repo\config\student.json" "$Ws\tools\student.json" -Force
 } elseif (-not (Test-Path "$Ws\tools\student.json")) {
-    Write-Host "還沒設定學號姓名，第一次「新增考卷」時會請你輸入"
+    Write-Host "還沒設定學號姓名，第一次「匯入考卷」時會請你輸入（可以略過）"
     Copy-Item "$Repo\config\student.example.json" "$Ws\tools\student.json" -Force
 }
 Copy-Item "$Repo\templates\00_索引.ipynb" "$Ws\00_索引.ipynb" -Force
@@ -330,6 +358,15 @@ Copy-Item "$Repo\templates\使用說明.txt" $Out -Force
 & $Py -m pip freeze | Set-Content "$Ws\tools\requirements-lock.txt" -Encoding utf8
 
 # ------------------------------------------------------------------ 7. 檢查
+# 第 3 步改用 .vsix 備案時，在這裡離線安裝（跟在 Mac 上建立的環境第一次啟動時一樣）
+$pendingVsix = Join-Path $Out "VSCode\data\pending-vsix"
+if (-not $SkipVSCode -and (Test-Path $pendingVsix)) {
+    & $Py "$Ws\tools\finish_setup.py"
+    $global:LASTEXITCODE = 0
+    if (Get-ChildItem $pendingVsix -Filter *.vsix -ErrorAction SilentlyContinue) {
+        $extFailed = @(Get-ChildItem $pendingVsix -Filter *.vsix | ForEach-Object { ($_.Name -split '__')[0] })
+    }
+}
 if (-not $SkipCheck) {
     Step "7. 環境檢查"
     & $Py "$Ws\tools\check_env.py"
@@ -353,4 +390,10 @@ foreach ($k in $StepTimes.Keys) {
 # 檔案數也印出來：精靈複製到隨身碟時用來算進度，不用再數一次
 $files = Get-ChildItem $Out -Recurse -File -Force | Measure-Object Length -Sum
 Write-Host ("`n完成：{0}（{1:N2} GB，{2} 個檔案）。把整個資料夾複製到隨身碟即可。" -f $Out, ($files.Sum / 1GB), $files.Count) -ForegroundColor Green
+if ($extFailed) {
+    # 精靈會把最後幾行當成失敗原因顯示，所以這段一定要放在最後
+    Write-Host "`n✖ VS Code 擴充沒有裝好：$($extFailed -join ', ')"
+    Write-Host "VS Code Marketplace 暫時無法連線。其他部分都已完成，請過幾分鐘再執行一次精靈（已完成的部分會沿用）。"
+    exit 1
+}
 if ($StrictCheck -and $checkFailed) { exit 1 }

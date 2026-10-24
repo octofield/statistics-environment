@@ -102,8 +102,7 @@ def check_export():
     except Exception as e:
         report(False, "nbconvert", repr(e))
         return
-    targets = [WORKSPACE / "00_索引.ipynb", WORKSPACE / "tools" / "templates" / "exam_template.ipynb",
-               *sorted((WORKSPACE / "notes").glob("*.ipynb"))]
+    targets = [WORKSPACE / "00_索引.ipynb", *sorted((WORKSPACE / "notes").glob("*.ipynb"))]
     for nb_path in targets:
         if not nb_path.exists():
             report(False, f"執行並匯出 {nb_path.name}", "找不到檔案")
@@ -129,8 +128,9 @@ def check_ai_extensions():
     # 在 Mac 上建立的環境：擴充應該已經由 finish_setup.py 裝好
     pending = vs_dir / "data" / "pending-vsix"
     if pending.is_dir():
-        report(not any(pending.glob("*.vsix")), "VS Code 擴充已安裝",
-               "還有沒裝好的 .vsix，請執行 1_啟動VSCode.bat 或再跑一次環境檢查")
+        left = any(pending.glob("*.vsix"))
+        report(not left, "VS Code 擴充已安裝",
+               "還有沒裝好的 .vsix，請執行 1_啟動VSCode.bat 或再跑一次環境檢查" if left else "")
 
     settings_path = vs_dir / "data" / "user-data" / "User" / "settings.json"
     if settings_path.is_file():
@@ -160,6 +160,9 @@ def check_network():
 
 
 if __name__ == "__main__":
+    version_file = Path(__file__).with_name("VERSION")
+    version = version_file.read_text(encoding="utf-8").strip() if version_file.is_file() else "（舊版，沒有版本號）"
+    print(f"統計學考試環境 v{version}　（有新版時，用新版的初始化精靈選同一個建立位置再執行一次就能更新）")
     for title, fn in [("套件", check_packages), ("statkit", check_statkit), ("中文字型", check_font),
                       ("HTML 匯出（實際執行 notebook）", check_export), ("AI 擴充", check_ai_extensions),
                       ("網路", check_network)]:

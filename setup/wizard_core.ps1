@@ -1,6 +1,8 @@
 ﻿# 初始化精靈的核心邏輯（不含 UI），由 Setup-Wizard.ps1 載入，也可以單獨測試。
 
 $script:IdPattern = '^[A-Za-z]\d{8}$'
+# 舊版留下、現在已經不用的檔案（相對於 STAT_EXAM\），跟 build.ps1 的 $LegacyFiles 一樣
+$script:LegacyFiles = @("5_新增考卷.bat", "workspace\tools\new_exam.py", "workspace\tools\templates")
 
 # 各步驟大約佔整體時間的比例（用來算進度條；build.ps1 結尾會印各步驟耗時，可以照著調整）
 $script:StepWeights = @{ 1 = 12; 2 = 22; 3 = 22; 4 = 5; 5 = 16; 6 = 3; 7 = 20 }
@@ -8,14 +10,43 @@ $script:StepWeights = @{ 1 = 12; 2 = 22; 3 = 22; 4 = 5; 5 = 16; 6 = 3; 7 = 20 }
 function Get-WizardDefaults {
     param([string]$RepoRoot)
     $desktop = [Environment]::GetFolderPath("Desktop")
+    $sources = Get-Content -Raw -Encoding utf8 (Join-Path $RepoRoot "config\sources.json") | ConvertFrom-Json
     [pscustomobject]@{
         RepoRoot        = $RepoRoot
+        Version         = (Get-Content -Raw (Join-Path $RepoRoot "VERSION")).Trim()
+        ReleasesApi     = $sources.releases_api
+        ReleasesPage    = $sources.releases_page
         Out             = Join-Path $desktop "STAT_EXAM"
         HandoutsDir     = $(if (Test-Path (Join-Path $RepoRoot "handouts")) { Join-Path $RepoRoot "handouts" } else { "" })
         HomeworkDir     = $(if (Test-Path (Join-Path $RepoRoot "homework")) { Join-Path $RepoRoot "homework" } else { "" })
         HasLocalVSCode  = Test-Path (Join-Path $env:APPDATA "Code\User\settings.json")
         LogDir          = Join-Path $env:LOCALAPPDATA "STAT_EXAM_Setup\logs"
     }
+}
+
+function Get-EnvVersion([string]$Out) {
+    # 已經建立好的環境的版本：workspace\tools\VERSION；舊版沒有這個檔（回傳 $null）
+    $f = Join-Path $Out "workspace\tools\VERSION"
+    if (Test-Path -LiteralPath $f) { return (Get-Content -LiteralPath $f -Raw).Trim() }
+    return $null
+}
+
+function Test-NewerVersion([string]$Remote, [string]$Local) {
+    # "v1.2.0" 比 "1.1.0" 新嗎？任何一邊不是 X.Y.Z（例如 dev）就當作不是
+    $r = $null; $l = $null
+    if (-not [version]::TryParse($Remote.TrimStart('v', 'V'), [ref]$r)) { return $false }
+    if (-not [version]::TryParse($Local.TrimStart('v', 'V'), [ref]$l)) { return $false }
+    return $r -gt $l
+}
+
+function Get-LatestRelease([string]$ApiUrl, [int]$TimeoutSec = 5) {
+    # GitHub 上最新的 release：@{ Tag; Url }；沒網路、被擋或格式不對都回傳 $null（不要影響精靈）
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $r = Invoke-RestMethod $ApiUrl -TimeoutSec $TimeoutSec -UseBasicParsing -Headers @{ "User-Agent" = "STAT_EXAM-Setup" }
+        if ($r.tag_name) { return [pscustomobject]@{ Tag = [string]$r.tag_name; Url = [string]$r.html_url } }
+    } catch { }
+    return $null
 }
 
 function Test-StudentId([string]$Id) {
@@ -170,6 +201,8 @@ function Start-UsbCopy {
     param([string]$Source, [string]$Drive, [string]$LogDir, [int]$Total = 0)
     New-Item -ItemType Directory -Force $LogDir | Out-Null
     $dst = Join-Path ($Drive.TrimEnd('\') + '\') (Split-Path $Source -Leaf)
+    # robocopy /E 不會刪掉隨身碟上多出來的檔案：先刪掉舊版留下、現在已經不用的檔案（清單跟 build.ps1 的 $LegacyFiles 一樣）
+    foreach ($old in $script:LegacyFiles) { Remove-Item -LiteralPath (Join-Path $dst $old) -Recurse -Force -ErrorAction SilentlyContinue }
     $log = Join-Path $LogDir ("copy_{0}.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
     $total = if ($Total -gt 0) { $Total } else { (Get-ChildItem -LiteralPath $Source -Recurse -File -Force | Measure-Object).Count }
     # 不能排除 __pycache__：WinPython 裡預先編譯好的 .pyc 是讓隨身碟啟動變快的關鍵

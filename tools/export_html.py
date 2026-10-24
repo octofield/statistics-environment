@@ -5,7 +5,6 @@
 --execute：先從頭重新執行整份 notebook（等於 Restart & Run All），確認沒有「隱藏狀態」。
 沒有給檔案時，會列出 exam/ 裡的 notebook 讓你選。
 """
-import re
 import shutil
 import sys
 from datetime import datetime
@@ -16,13 +15,16 @@ from nbconvert import HTMLExporter
 from nbconvert.preprocessors import ExecutePreprocessor
 
 WORKSPACE = Path(__file__).resolve().parent.parent
-NAME_RE = re.compile(r"^[A-Za-z]\d{8}_")      # 學號開頭，例如 B12345678_王小明_期中考
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from import_exam import load_student  # noqa: E402
 
 
 def lint(nb, path):
     warns = []
-    if not NAME_RE.match(path.name):
-        warns.append(f"檔名沒有以學號開頭（例如 B12345678_王小明_期中考.ipynb）：{path.name}")
+    # 考卷保留老師的原檔名，所以只檢查內容裡有沒有寫學號（tools/student.json 有設定時）
+    sid = load_student().get("id", "")
+    if sid and not any(sid.lower() in c.source.lower() for c in nb.cells):
+        warns.append(f"考卷裡找不到你的學號 {sid}，記得依老師的格式寫上學號、姓名")
     code_cells = [c for c in nb.cells if c.cell_type == "code" and c.source.strip()]
     never_run = [i for i, c in enumerate(code_cells, 1) if c.get("execution_count") is None]
     if never_run:

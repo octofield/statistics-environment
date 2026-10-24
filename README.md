@@ -1,6 +1,6 @@
 # 統計學考試環境
 
-一鍵建立可以帶進考場、**完全離線**使用的 Python 統計考試環境：WinPython + 可攜式 VS Code（已移除 Copilot、關閉所有 AI 功能）+ JupyterLab，附上統計工具、各章筆記、公式總表、考卷範本與常見問題。寫完直接匯出 HTML 繳交。
+一鍵建立可以帶進考場、**完全離線**使用的 Python 統計考試環境：WinPython + 可攜式 VS Code（已移除 Copilot、關閉所有 AI 功能）+ JupyterLab，附上統計工具、各章筆記、公式總表、匯入考卷工具與常見問題。寫完直接匯出 HTML 繳交。
 
 為開書上機考設計的（考試全程斷網、禁用 AI、只能用隨身碟裡的環境），其他使用 Python / Jupyter 的統計課程也可以直接用或改來用。
 
@@ -15,7 +15,8 @@
 - **編輯器**：可攜式 VS Code（繁體中文介面、Python / Jupyter / Pylance、PDF 與 Excel 檢視），JupyterLab 當備案
 - **statkit 工具**：機率字串（`sk.prob(sk.Poisson(6.6), 'X >= 10')`，自動處理離散分布的 ≥ 要減 1）、互動式分布計算機 `sk.explore()`（會產生課程寫法的 scipy 程式碼）、敘述統計、統計圖、多個變數一起分析（分組統計、相關矩陣、散佈圖矩陣、分組長條圖）、報童模型、模擬、資料速覽 `sk.peek()`
 - **文件**：讀入資料與整理、公式總表、Markdown 與 LaTeX 語法、各章筆記、常見問題；snippets 都有參數說明（含 groupby、樞紐分析表、交叉表等多變數寫法）
-- **考試流程**：新增考卷（自動用學號姓名命名）、匯出 HTML（檢查檔名、執行順序、錯誤，並自動備份）、環境檢查
+- **考試流程**：匯入老師給的考卷 ipynb（保留原檔名，自動加上 import 與設定）、匯出 HTML（檢查有沒有寫學號、執行順序、錯誤，並自動備份）、環境檢查
+- **更新**：精靈會提示 GitHub 上有新版；用同一個建立位置重跑就能更新，考卷不會被刪（見[更新](#更新)）
 
 ## 快速開始
 
@@ -59,7 +60,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1 -Out D:\STAT_EXAM -StudentId 
 | `build.ps1` 參數 | 說明 |
 |---|---|
 | `-Out` | 建立位置（預設 `build\STAT_EXAM`） |
-| `-StudentId` / `-StudentName` | 學號姓名（不給的話，第一次「新增考卷」時會請你輸入） |
+| `-StudentId` / `-StudentName` | 學號姓名（只用來在匯入考卷後提醒、匯出時檢查考卷裡有沒有寫；不給的話，第一次「匯入考卷」時可以輸入） |
 | `-HandoutsDir` / `-HomeworkDir` | 講義、作業資料夾（預設是 repo 的 `handouts/`、`homework/`，沒有就略過） |
 | `-SkipVSCode` | 不裝可攜式 VS Code（少約 1.2 GB；只能用 JupyterLab 作答） |
 | `-SkipExtraExtensions` | 不裝附加的 VS Code 擴充（`config/extensions-extra.txt`：PDF、Excel 檢視、Rainbow CSV、Code Runner） |
@@ -74,7 +75,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1 -Out D:\STAT_EXAM -StudentId 
 ## 精靈會做什麼
 
 1. **歡迎**：說明與考試規定提醒
-2. **學號姓名**：用在考卷檔名和抬頭（可以先略過）
+2. **學號姓名**（可以先略過）：不會自動寫進考卷；匯入考卷後會提醒你填，匯出 HTML 時如果考卷裡找不到學號會警告
 3. **講義與作業**（選填）：選你自己的資料夾，只會複製到你的電腦和隨身碟；講義 PDF 會轉成文字，方便在 VS Code 搜尋
 4. **選擇元件**（預設全裝，每一項都寫了不裝會怎樣；VS Code 和 JupyterLab 至少留一個）：
    - 可攜式 VS Code 與必要擴充（約 1.2 GB）：不裝就只能用 JupyterLab 作答
@@ -99,14 +100,14 @@ STAT_EXAM/
 ├─ 2_啟動JupyterLab.bat  備案
 ├─ 3_匯出HTML.bat        匯出並檢查、備份
 ├─ 4_環境檢查.bat        考前跑一次（建議斷網跑）
-├─ 5_新增考卷.bat        確認學號姓名 → 建立 學號_姓名_考試名稱.ipynb
+├─ 5_匯入考卷.bat        選老師給的 ipynb → 複製到 exam\（保留原檔名）、加上 import 與設定 → 打開
 ├─ 使用說明.txt
 ├─ WPy64-313150/         WinPython（Python 與所有套件）
 ├─ VSCode/               可攜式 VS Code（設定、擴充都在 VSCode\data\）
 └─ workspace/            00_索引.ipynb、常見問題.md、exam/、data/、notes/、handouts/、homework/、statkit/、tools/
 ```
 
-考試當天：插隨身碟 → `1_啟動VSCode.bat` → `5_新增考卷.bat` → 作答 → Ctrl+Shift+P「執行工作」→「匯出目前的 notebook 成 HTML」→ 上傳。詳細流程寫在 `使用說明.txt` 和 `00_索引.ipynb`。
+考試當天：插隨身碟 → `1_啟動VSCode.bat` → 下載老師給的考卷 → `5_匯入考卷.bat` 選這份 ipynb → 依老師的格式寫上學號姓名、作答 → Ctrl+Shift+P「執行工作」→「匯出目前的 notebook 成 HTML」→ 上傳。詳細流程寫在 `使用說明.txt` 和 `00_索引.ipynb`。
 
 **考前一定要演練**：拔掉網路，從隨身碟跑一次 `4_環境檢查.bat`，用 VS Code 和 JupyterLab 各寫一題、匯出 HTML；可以的話換一台電腦再試一次。
 
@@ -118,12 +119,39 @@ STAT_EXAM/
 | 防毒軟體攔截 | 少數防毒會誤判下載程式的 PowerShell 腳本。可以暫時允許，或改用方法 B 自己看過腳本再執行 |
 | 下載到一半失敗 / 停止 | 直接再執行一次精靈，已下載的檔案會沿用 |
 | 精靈說建立失敗 | 按「開啟紀錄檔」看最後幾行；常見原因是網路中斷、磁碟空間不足 |
+| VS Code 擴充沒有裝好（紀錄裡有 `Server returned 503`） | 微軟的 VS Code Marketplace 暫時故障，精靈已經自動重試過。過幾分鐘再執行一次精靈、選同一個建立位置，只會補裝沒裝好的擴充 |
 | 覺得太慢 | 紀錄檔最後有「各步驟耗時」，回報時附上；複製到隨身碟最花時間的是檔案數量，不需要離線文件就取消勾選 |
 | 學校 / 公司網路有 proxy | 換到一般網路（例如手機熱點）再執行 |
-| 想更新環境 | 選同一個建立位置再跑一次精靈；`exam\` 裡的考卷不會被刪 |
+| 想更新環境 | 見[更新](#更新) |
 | 舊版建立的隨身碟出現 `uv trampoline failed to canonicalize script path` | 舊版用 uv 產生的 `jupyter.exe` 等執行檔記的是建立時的路徑，複製到隨身碟後就不能用。用新版精靈重新建立；或在 `4_環境檢查.bat` 的同一個資料夾開命令提示字元，執行 `call workspace\tools\env.bat` 再執行 `"%PYTHON%" workspace\tools\fix_launchers.py`（舊版的隨身碟要先把新版的 `tools\fix_launchers.py` 複製到 `workspace\tools\`） |
 
 精靈的紀錄檔在 `%LOCALAPPDATA%\STAT_EXAM_Setup\logs\`（不含你的講義、作業內容），回報問題時可以附上。
+
+## 更新
+
+**怎麼知道有新版**：開啟精靈時，如果 GitHub 上有新版，標題列右邊會出現「有新版 vX.Y.Z，按這裡下載」（Mac 版會在終端機印出提示）。也可以在這個 repo 按「**Watch → Custom → Releases**」，有新版時 GitHub 會通知你。
+
+**目前的版本**：精靈的視窗標題；建立好的環境則是 `4_環境檢查.bat` 的第一行（也寫在 `workspace\tools\VERSION`）。
+
+**更新步驟**：
+
+1. 先拿到新版的精靈：
+
+   | 當初的安裝方式 | 怎麼更新 |
+   |---|---|
+   | Setup.exe | 到 [Releases](../../releases) 下載新版的 `STAT_EXAM_Setup_vX.Y.Z.exe` 執行，會直接覆蓋舊版，不用先解除安裝 |
+   | 下載 zip | 重新下載 zip、解壓縮，雙擊 `setup.cmd` |
+   | git clone | `git pull`，再執行 `setup.cmd` |
+   | Mac | 重新下載 zip，執行 `setup_mac.command` |
+
+2. 在精靈裡選**同一個建立位置**（精靈會顯示「已經有環境 v1.0.0，會更新成 v1.1.0」），並勾選「完成後複製到隨身碟」。電腦上的環境已經刪掉的話，可以直接把建立位置選成隨身碟上的 `STAT_EXAM`（只是比較慢）。
+
+**更新時會發生什麼事**：
+
+- 會更新：statkit、tools、筆記、索引、常見問題、使用說明、snippets 和 VS Code 設定、啟動檔；新加入的套件與擴充會補裝
+- 不會被刪：`exam\` 裡的考卷、`data\` 裡你自己放的檔案（複製到隨身碟時也是）
+- 會沿用、不會升級：WinPython、VS Code、離線文件、已經裝好的套件。這樣考前環境不會突然變動；想全部換新，請選一個新的建立位置
+- 舊版留下、現在已經不用的檔案（例如舊的 `5_新增考卷.bat`）會自動刪掉；取消勾選的元件不會被移除
 
 ## 隱私與著作權
 
@@ -140,9 +168,10 @@ STAT_EXAM/
 | `config/sources.json` | 下載網址（Windows 與 Mac 共用） |
 | `build.ps1` | 實際打包的腳本（精靈在背景執行它） |
 | `statkit/` | 工具函式庫；`python -m statkit.selftest` 跟講義、作業答案比對 |
-| `notes/`、`templates/` | 筆記、考卷範本（`{學號}` `{姓名}` `{考試名稱}` 佔位）、索引、常見問題、使用說明 |
+| `notes/`、`templates/` | 筆記、索引、常見問題、使用說明 |
+| `VERSION` | 版本號（唯一的來源；精靈、環境檢查、發布都讀它） |
 | `config/` | VS Code 設定（關 AI、離線）、tasks、snippets、擴充清單、JupyterLab 設定、`student.example.json` |
-| `launchers/`、`tools/` | 隨身碟根目錄的 .bat、環境設定與工具（匯出、新增考卷、語言包、設定同步、環境檢查） |
+| `launchers/`、`tools/` | 隨身碟根目錄的 .bat、環境設定與工具（匯出、匯入考卷、語言包、設定同步、環境檢查） |
 | `.github/workflows/` | CI 與發布 |
 
 **檢查**（CI 每次 push / PR 都會跑）：
@@ -160,11 +189,11 @@ python tools/ci/extract_math.py > math.json; node tools/ci/check_math.js math.js
 - `.command` / `.sh` 要用 **LF** 換行（bash 遇到 CRLF 會出錯），在 macOS 內建的 bash 3.2 上也要能跑
 - 換行由 `.gitattributes` 處理
 
-**發布**：打 tag 就會自動編譯 Setup.exe 並建立 Release。
+**發布**：先把 `VERSION` 改成新的版本號並 commit，再打同樣版本的 tag，就會自動編譯 Setup.exe 並建立 Release（tag 跟 `VERSION` 不一致時會失敗）。使用者的精靈會用 GitHub 上最新的 Release 判斷要不要提示更新。
 
 ```powershell
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.1.0
+git push origin v1.1.0
 ```
 
 ## 第三方軟體與授權

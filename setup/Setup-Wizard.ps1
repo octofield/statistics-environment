@@ -6,7 +6,7 @@
   完成後可以直接複製到隨身碟。
 
   開發 / 測試用參數：
-    -TestOptions <json>   預先填好選項（欄位同 $S）
+    -TestOptions <json>   預先填好選項（欄位同 $S；另外可以給 LatestTag 模擬 GitHub 上的最新版本）
     -AutoStart            開啟後直接開始建立（搭配 -TestOptions）
     -AutoClose            完成後自動關閉
     -ResultFile <path>    把結果寫成 JSON
@@ -113,7 +113,7 @@ $form = New-Object Windows.Forms.Form
 $form.SuspendLayout()
 $form.AutoScaleDimensions = New-Object Drawing.SizeF(96, 96)
 $form.AutoScaleMode = "Dpi"
-$form.Text = "統計學考試環境 初始化精靈"
+$form.Text = "統計學考試環境 初始化精靈 v$($D.Version)"
 $form.ClientSize = New-Object Drawing.Size(780, 560)
 $form.FormBorderStyle = "FixedDialog"; $form.MaximizeBox = $false
 $form.StartPosition = "CenterScreen"; $form.Font = $F; $form.BackColor = [Drawing.Color]::White
@@ -123,7 +123,15 @@ $header.Location = New-Object Drawing.Point(0, 0); $header.Size = New-Object Dra
 $header.BackColor = [Drawing.Color]::FromArgb(242, 246, 252)
 $form.Controls.Add($header)
 $hTitle = Add-Label $header "" 24 12 730 32 $FT
-$hSub = Add-Label $header "" 26 46 730 22 $FS $Muted
+$hSub = Add-Label $header "" 26 46 400 22 $FS $Muted
+# 有新版時才出現（開啟精靈時在背景查 GitHub，見最下面的 Start-UpdateCheck）
+$lnkUpdate = New-Object Windows.Forms.LinkLabel
+$lnkUpdate.AutoSize = $false
+$lnkUpdate.Location = New-Object Drawing.Point(430, 46); $lnkUpdate.Size = New-Object Drawing.Size(330, 22)
+$lnkUpdate.TextAlign = "MiddleRight"; $lnkUpdate.Font = $FB; $lnkUpdate.Visible = $false
+$lnkUpdate.BackColor = [Drawing.Color]::FromArgb(255, 236, 179); $lnkUpdate.LinkColor = [Drawing.Color]::FromArgb(150, 80, 0)
+$header.Controls.Add($lnkUpdate); $lnkUpdate.BringToFront()
+$lnkUpdate.Add_LinkClicked({ Start-Process $this.Tag })
 
 $line = New-Object Windows.Forms.Label
 $line.Location = New-Object Drawing.Point(0, 500); $line.Size = New-Object Drawing.Size(780, 1)
@@ -137,7 +145,7 @@ $pWelcome = New-Page
 Add-Label $pWelcome ("這個精靈會在你的電腦上建立一個可以帶進考場、完全離線使用的考試環境：`n`n" +
     "　• Python 3.13（WinPython）＋ 統計學會用到的套件（numpy、pandas、scipy、matplotlib…）`n" +
     "　• 可攜式 VS Code（已移除 Copilot、關閉所有 AI 功能），JupyterLab 當備案`n" +
-    "　• statkit 工具、各章筆記、公式總表、考卷範本、常見問題`n" +
+    "　• statkit 工具、各章筆記、公式總表、匯入考卷工具、常見問題`n" +
     "　（VS Code、JupyterLab、離線文件等可以在「選擇元件」那一步決定要不要裝，預設全裝）`n`n" +
     "需要：網路（下載約 1 GB）、約 3 GB 硬碟空間、15–40 分鐘。完成後可以直接複製到隨身碟（建議 8 GB 以上）。`n" +
     "所有軟體都從官方網站下載；你選的講義、作業只會複製到你的電腦和隨身碟，不會上傳到任何地方。") 0 0 732 190 | Out-Null
@@ -150,15 +158,15 @@ $chkAck = Add-CheckBox $pWelcome "我了解，會自行確認考試規定" 0 280
 
 # ------------------------------------------------------------------ 第 2 頁：學號姓名
 $pStudent = New-Page
-Add-Label $pStudent "學號姓名會用在考卷檔名（例如 B12345678_王小明_期中考.ipynb）和考卷抬頭。" 0 0 732 26 | Out-Null
+Add-Label $pStudent ("學號姓名不會自動寫進考卷（考卷是老師給的 ipynb，保留原檔名）；" +
+    "匯入考卷後會提醒你填，匯出 HTML 時如果考卷裡找不到你的學號會警告。") 0 0 732 44 | Out-Null
 Add-Label $pStudent "學號" 0 50 80 26 $FB | Out-Null
 $txtId = Add-TextBox $pStudent $S.StudentId 90 47 220
 Add-Label $pStudent "1 個英文字母 + 8 個數字，例如 B12345678" 324 50 400 26 $FS $Muted | Out-Null
 Add-Label $pStudent "姓名" 0 95 80 26 $FB | Out-Null
 $txtName = Add-TextBox $pStudent $S.StudentName 90 92 220
-$chkSkip = Add-CheckBox $pStudent "先略過，第一次「新增考卷」時再輸入" 0 145 500 30 $S.SkipStudent
-Add-Label $pStudent ("之後也可以改：每次「新增考卷」都會先顯示學號姓名請你確認，不對可以當場修改；" +
-    "或直接用記事本打開 STAT_EXAM\workspace\tools\student.json。") 0 190 732 50 $FS $Muted | Out-Null
+$chkSkip = Add-CheckBox $pStudent "先略過（第一次「匯入考卷」時可以再輸入）" 0 145 500 30 $S.SkipStudent
+Add-Label $pStudent "之後要改：用記事本打開 STAT_EXAM\workspace\tools\student.json。" 0 190 732 50 $FS $Muted | Out-Null
 $chkSkip.Add_CheckedChanged({ $txtId.Enabled = -not $chkSkip.Checked; $txtName.Enabled = -not $chkSkip.Checked })
 
 # ------------------------------------------------------------------ 第 3 頁：講義與作業
@@ -249,7 +257,11 @@ function Update-OutInfo {
     if (-not $o) { $lblOut.Text = ""; return }
     $free = Get-FreeSpaceGB $o
     $exists = Test-Path (Join-Path $o "WPy64-*")
-    $lblOut.Text = $(if ($exists) { "已經有環境，會更新它（沿用已下載的檔案；exam\ 裡的考卷不會被刪除）" } else { "會建立新的環境" }) +
+    $old = if ($exists) { Get-EnvVersion $o }
+    $what = if (-not $exists) { "會建立新的環境（v$($D.Version)）" }
+            elseif ($old -eq $D.Version) { "已經有 v$old 的環境，會重新檢查並補齊（exam\ 裡的考卷不會被刪除）" }
+            else { "已經有環境（$(if ($old) { "v$old" } else { '舊版' })），會更新成 v$($D.Version)（exam\ 裡的考卷不會被刪除）" }
+    $lblOut.Text = $what +
                    $(if ($null -ne $free) { "　｜　這顆磁碟剩 $free GB" } else { "" })
 }
 $btnOut.Add_Click({
@@ -294,7 +306,7 @@ $lblDetail = Add-Label $pDone "" 0 40 732 90 $F
 Add-Label $pDone "接下來：" 0 140 732 26 $FB | Out-Null
 $lblNext = Add-Label $pDone ("1. 打開 STAT_EXAM\使用說明.txt，了解每個啟動檔的用途`n" +
     "2. 拔掉網路，雙擊 4_環境檢查.bat，確認斷網也能用`n" +
-    "3. 雙擊 5_新增考卷.bat，確認學號姓名並開一份考卷，在 VS Code 寫一題、匯出 HTML 試試看`n" +
+    "3. 雙擊 5_匯入考卷.bat，選一份作業的 ipynb 當成考卷匯入，在 VS Code 寫一題、匯出 HTML 試試看`n" +
     "4. 換一台電腦再試一次（確認換磁碟代號也能用）") 0 168 732 100
 $btnOpenOut = Add-Button $pDone "開啟 STAT_EXAM" 0 290 170
 $btnOpenGuide = Add-Button $pDone "開啟使用說明" 180 290 150
@@ -384,7 +396,7 @@ function Test-Page([int]$i) {
 
 function Get-Summary {
     $yes = { param($b) if ($b) { "是" } else { "否" } }
-    $student = if ($S.SkipStudent -or -not $S.StudentId) { "（略過，第一次新增考卷時再輸入）" } else { "$($S.StudentId)　$($S.StudentName)" }
+    $student = if ($S.SkipStudent -or -not $S.StudentId) { "（略過，第一次匯入考卷時可以輸入）" } else { "$($S.StudentId)　$($S.StudentName)" }
     $names = [ordered]@{ VSCode = "VS Code"; VSCodeExtras = "附加 VS Code 擴充"; JupyterLab = "JupyterLab"; Docs = "離線文件" }
     # 沒裝 VS Code 時，附加擴充和同步設定都不算
     $on = @{ VSCode = $S.VSCode; VSCodeExtras = $S.VSCodeExtras -and $S.VSCode; JupyterLab = $S.JupyterLab; Docs = $S.Docs }
@@ -461,8 +473,16 @@ function Finish-Wizard([string]$status) {
         "failed" {
             $lblResult.Text = "✖ 建立失敗"
             $lblResult.ForeColor = [Drawing.Color]::FromArgb(200, 40, 40)
-            $tail = (($S.Err + "`n" + $S.Log) -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 4) -join "`n"
-            $lblDetail.Text = "最後的訊息：`n$tail`n常見原因：網路中斷、磁碟空間不足、防毒軟體攔截。可以直接再執行一次精靈，已下載的檔案會沿用。"
+            if (($S.Log + $S.Err) -match 'VS Code 擴充沒有裝好|Server returned 503') {
+                $lblDetail.Text = ("VS Code 的擴充沒有裝好：VS Code Marketplace 暫時無法連線（HTTP 503，是微軟伺服器暫時故障，不是你的電腦有問題）。`n" +
+                    "其他部分都已經完成。請過幾分鐘再執行一次精靈、選同一個建立位置，只會補裝沒裝好的擴充。")
+            } else {
+                # PowerShell 的錯誤格式（+ ... ~~~、CategoryInfo…）看不懂，只留真正的訊息
+                $tail = (($S.Err + "`n" + $S.Log) -split "`r?`n" |
+                    Where-Object { $_.Trim() -and $_ -notmatch '^\s*(\+|~|位於|At )|CategoryInfo|FullyQualifiedErrorId' } |
+                    Select-Object -Last 4) -join "`n"
+                $lblDetail.Text = "最後的訊息：`n$tail`n常見原因：網路中斷、磁碟空間不足、防毒軟體攔截。可以直接再執行一次精靈，已下載的檔案會沿用。"
+            }
         }
         "copyfailed" {
             $lblResult.Text = "⚠ 環境已建立，但複製到隨身碟失敗"
@@ -550,9 +570,41 @@ $form.Add_FormClosing({
 })
 $form.AcceptButton = $btnNext
 
+# ------------------------------------------------------------------ 更新提示
+function Show-UpdateLink($release) {
+    if (-not $release -or -not (Test-NewerVersion $release.Tag $D.Version)) { return }
+    $lnkUpdate.Text = "有新版 $($release.Tag)，按這裡下載（目前 v$($D.Version)）"
+    $lnkUpdate.Tag = $(if ($release.Url) { $release.Url } else { $D.ReleasesPage })
+    $lnkUpdate.Visible = $true
+}
+$updTimer = New-Object Windows.Forms.Timer
+$updTimer.Interval = 500
+$updTimer.Add_Tick({
+    if ($script:UpdJob.State -in "Running", "NotStarted") { return }
+    $updTimer.Stop()
+    try { Show-UpdateLink (Receive-Job $script:UpdJob -ErrorAction SilentlyContinue | Select-Object -Last 1) } catch { }
+    Remove-Job $script:UpdJob -Force -ErrorAction SilentlyContinue
+})
+function Start-UpdateCheck {
+    # 在背景查 GitHub 最新的 release（不會卡住畫面）；沒網路就什麼都不顯示
+    if (-not $D.ReleasesApi) { return }
+    $script:UpdJob = Start-Job -ArgumentList (Join-Path $Here "wizard_core.ps1"), $D.ReleasesApi -ScriptBlock {
+        param($core, $api)
+        . $core
+        Get-LatestRelease $api
+    }
+    $updTimer.Start()
+}
+
 # ------------------------------------------------------------------ 開始
 $form.ResumeLayout($false)
 $form.Add_Shown({
+    if ($S.LatestTag) {
+        # 測試用：-TestOptions 給 LatestTag 就不連網，直接當作 GitHub 上最新的是這一版
+        Show-UpdateLink ([pscustomobject]@{ Tag = $S.LatestTag; Url = $D.ReleasesPage })
+    } elseif (-not $ScreenshotDir) {
+        Start-UpdateCheck
+    }
     if ($ScreenshotDir) {
         New-Item -ItemType Directory -Force $ScreenshotDir | Out-Null
         $lblStep.Text = "步驟 2 / 7：安裝套件"; $bar.Value = 18; $lblStatus.Text = "Collecting numpy..."; $lblTime.Text = "已經過 03:12"

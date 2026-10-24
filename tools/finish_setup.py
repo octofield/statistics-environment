@@ -44,6 +44,7 @@ def main():
             print(f"第一次在 Windows 上使用：產生 {len(fixed)} 個命令列執行檔（jupyter、pylsp…）")
     vsix = sorted(PENDING.glob("*.vsix")) if PENDING.is_dir() else []
     if not vsix:
+        shutil.rmtree(PENDING, ignore_errors=True)      # 下載 .vsix 失敗時可能留下空資料夾
         return 0
     # order.txt：相依的擴充排在前面（build_mac.py 寫的）
     order_file = PENDING / "order.txt"

@@ -26,6 +26,9 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 DL = REPO / "build" / "downloads"
+VERSION = (REPO / "VERSION").read_text(encoding="utf-8").strip()
+# 舊版留下、現在已經不用的檔案（相對於 STAT_EXAM/）
+LEGACY_FILES = ("5_新增考卷.bat", "workspace/tools/new_exam.py", "workspace/tools/templates")
 SOURCES = json.loads((REPO / "config" / "sources.json").read_text(encoding="utf-8"))
 WIN_PLATFORM = "x86_64-pc-windows-msvc"
 VSIX_PLATFORM = "win32-x64"
@@ -92,6 +95,16 @@ def merge_move(src, dst):
             target.parent.mkdir(parents=True, exist_ok=True)
             os.replace(p, target)
     shutil.rmtree(src)
+
+
+def remove_legacy(root):
+    """刪掉舊版留下、現在已經不用的檔案（清單跟 build.ps1 的 $LegacyFiles 一樣；exam/ 裡的考卷不動）。"""
+    for rel in LEGACY_FILES:
+        p = Path(root) / rel
+        if p.is_dir():
+            shutil.rmtree(p, ignore_errors=True)
+        elif p.exists():
+            p.unlink()
 
 
 def copy_tree(src, dst):
@@ -203,6 +216,7 @@ def copy_to_usb(src, volume):
     if shutil.disk_usage(volume).free < need:
         sys.exit(f"\n隨身碟空間不足：需要約 {need / 1e9:.1f} GB")
     dst = volume / src.name
+    remove_legacy(dst)                       # rsync 沒有 --delete，舊版留下的檔案要自己刪
     print(f"\n複製到 {dst}（隨身碟寫小檔案比較慢，請耐心等候）...", flush=True)
     # 不加 --delete：隨身碟上 exam\ 裡的考卷不會被刪；COPYFILE_DISABLE 避免產生 ._ 開頭的 macOS 附屬檔
     run("rsync", "-rt", "--exclude", "._*", "--exclude", ".DS_Store", f"{src}/", f"{dst}/",
@@ -237,6 +251,7 @@ def main():
         sys.exit("找不到 uv，請用 setup_mac.command 執行")
 
     # ------------------------------------------------------------ 1. WinPython
+    print(f"統計學考試環境 v{VERSION}")
     step("1. WinPython")
     if not args.skip_vscode and not (out / "VSCode" / "Code.exe").exists():
         start_prefetch(SOURCES["vscode_win"], "vscode-win32-x64.zip")
@@ -348,9 +363,10 @@ def main():
             print(f"已複製{what}：{src}")
         else:
             print(f"略過{what}（找不到資料夾：{src}）")
-    for d in ("exam", "data", "homework", "fonts", ".vscode", "tools/templates"):
+    for d in ("exam", "data", "homework", "fonts", ".vscode"):
         (ws / d).mkdir(parents=True, exist_ok=True)
-    shutil.copy2(REPO / "templates" / "exam_template.ipynb", ws / "tools" / "templates" / "exam_template.ipynb")
+    remove_legacy(out)
+    shutil.copy2(REPO / "VERSION", ws / "tools" / "VERSION")
     student = ws / "tools" / "student.json"
     if args.student_id.strip() and args.student_name.strip():
         sid, sname = args.student_id.strip().upper(), args.student_name.strip()
@@ -359,7 +375,7 @@ def main():
     elif (REPO / "config" / "student.json").is_file():
         shutil.copy2(REPO / "config" / "student.json", student)
     elif not student.is_file():
-        print("還沒設定學號姓名，第一次「新增考卷」時會請你輸入")
+        print("還沒設定學號姓名，第一次「匯入考卷」時會請你輸入（可以略過）")
         shutil.copy2(REPO / "config" / "student.example.json", student)
     shutil.copy2(REPO / "templates" / "00_索引.ipynb", ws / "00_索引.ipynb")
     shutil.copy2(REPO / "templates" / "常見問題.md", ws / "常見問題.md")

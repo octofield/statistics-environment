@@ -17,6 +17,11 @@ mkdir -p "$DL"
 xattr -dr com.apple.quarantine "$REPO" 2>/dev/null || true
 
 src() { sed -n "s/.*\"$1\": *\"\([^\"]*\)\".*/\1/p" "$REPO/config/sources.json" | head -n 1; }
+VERSION="$(tr -d '[:space:]' < "$REPO/VERSION")"
+newer_version() {   # newer_version 1.2.0 1.1.0 → 第一個比第二個新時成功
+    awk -v a="$1" -v b="$2" 'BEGIN { split(a, x, "."); split(b, y, ".");
+        for (i = 1; i <= 3; i++) { if (x[i] + 0 > y[i] + 0) exit 0; if (x[i] + 0 < y[i] + 0) exit 1 } exit 1 }'
+}
 
 # ------------------------------------------------------------------ uv（會自動下載 Python）
 if [ "$(uname -m)" = "arm64" ]; then UV_URL="$(src uv_mac_arm64)"; else UV_URL="$(src uv_mac_x64)"; fi
@@ -46,13 +51,19 @@ choose_folder() {
 ARGS=("$@")
 if [ $# -eq 0 ]; then
     echo "=================================================="
-    echo " 統計學考試環境：在 Mac 上建立給 Windows 考場用的隨身碟"
+    echo " 統計學考試環境 v$VERSION：在 Mac 上建立給 Windows 考場用的隨身碟"
     echo "=================================================="
     echo "這不是學校或任何課程的官方工具，請自行確認考試規定。"
     echo "需要網路（下載約 1 GB）與約 4 GB 的空間，大約 15–40 分鐘。"
+    # 有新版就提醒（查不到就略過）
+    LATEST="$(curl -fsS --max-time 5 "$(src releases_api)" 2>/dev/null | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -n 1 || true)"
+    if [ -n "$LATEST" ] && newer_version "$LATEST" "$VERSION"; then
+        echo "★ 有新版 v$LATEST（目前 v$VERSION），建議先到 $(src releases_page) 下載新版再執行。"
+    fi
     echo
 
-    read -r -p "學號（例如 B12345678；直接按 Enter 略過，之後新增考卷時再輸入）：" SID
+    echo "學號姓名不會自動寫進考卷，只用來在匯入考卷後提醒你填、匯出 HTML 時檢查考卷裡有沒有寫。"
+    read -r -p "學號（例如 B12345678；直接按 Enter 略過）：" SID
     if [ -n "$SID" ]; then
         until [[ "$SID" =~ ^[A-Za-z][0-9]{8}$ ]]; do
             read -r -p "格式不對（1 個英文字母 + 8 個數字），請重新輸入：" SID
