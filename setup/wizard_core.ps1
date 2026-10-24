@@ -16,6 +16,7 @@ function Get-WizardDefaults {
         Version         = (Get-Content -Raw (Join-Path $RepoRoot "VERSION")).Trim()
         ReleasesApi     = $sources.releases_api
         ReleasesPage    = $sources.releases_page
+        ReadmePage      = $sources.readme_page
         Out             = Join-Path $desktop "STAT_EXAM"
         HandoutsDir     = $(if (Test-Path (Join-Path $RepoRoot "handouts")) { Join-Path $RepoRoot "handouts" } else { "" })
         HomeworkDir     = $(if (Test-Path (Join-Path $RepoRoot "homework")) { Join-Path $RepoRoot "homework" } else { "" })

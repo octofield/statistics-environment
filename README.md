@@ -1,22 +1,80 @@
 # 統計學考試環境
 
-一鍵建立可以帶進考場、**完全離線**使用的 Python 統計考試環境：WinPython + 可攜式 VS Code（已移除 Copilot、關閉所有 AI 功能）+ JupyterLab，附上統計工具、各章筆記、公式總表、匯入考卷工具與常見問題。寫完直接匯出 HTML 繳交。
+**一個精靈，幫你做出可以帶進考場、完全離線使用的 Python 統計考試環境。** 全部放在一個資料夾，複製到隨身碟、換電腦都能用；裡面除了 Python 和編輯器，還有考試時用得到的工具、筆記和公式表。
 
-為開書上機考設計的（考試全程斷網、禁用 AI、只能用隨身碟裡的環境），其他使用 Python / Jupyter 的統計課程也可以直接用或改來用。
+![初始化精靈的歡迎頁](docs/images/wizard-welcome.png)
 
 > ⚠ **這不是學校或任何課程的官方工具。** 各課程的考試規定不同（是否允許 VS Code、是否一定要用 Jupyter、能帶哪些檔案），使用前請自行確認。本工具已關閉 AI 功能，但是否符合規定由使用者自行負責。
 
 > ⚠ 要確認是否能使用 VS Code 以及自己寫的套件，如果最後不能用，我會再進行修改。如果有任何問題歡迎開 issue 或直接跟我說。
 
-## 功能
+想直接開始：跳到[快速開始](#快速開始)。
 
-- **一個精靈搞定**：圖形介面一步一步設定學號姓名、講義與作業、要裝哪些元件、選項，自動下載安裝，完成後可以直接複製到隨身碟
-- **完全離線、換電腦也能用**：全部用相對路徑，換磁碟代號、換電腦都不用重新設定；不會讀到考場電腦上的套件
-- **編輯器**：可攜式 VS Code（繁體中文介面、Python / Jupyter / Pylance、PDF 與 Excel 檢視），JupyterLab 當備案
-- **statkit 工具**：機率字串（`sk.prob(sk.Poisson(6.6), 'X >= 10')`，自動處理離散分布的 ≥ 要減 1）、互動式分布計算機 `sk.explore()`（會產生課程寫法的 scipy 程式碼）、敘述統計、統計圖、多個變數一起分析（分組統計、相關矩陣、散佈圖矩陣、分組長條圖）、報童模型、模擬、資料速覽 `sk.peek()`
-- **文件**：讀入資料與整理、公式總表、Markdown 與 LaTeX 語法、各章筆記、常見問題；snippets 都有參數說明（含 groupby、樞紐分析表、交叉表等多變數寫法）
-- **考試流程**：匯入老師給的考卷 ipynb（保留原檔名，自動加上 import 與設定）、匯出 HTML（檢查有沒有寫學號、執行順序、錯誤，並自動備份）、環境檢查
-- **更新**：精靈會提示 GitHub 上有新版；用同一個建立位置重跑就能更新，考卷不會被刪（見[更新](#更新)）
+## 為什麼需要它
+
+開書上機考通常是**全程斷網、禁止 AI、只能用隨身碟裡的環境**。自己準備的話，常見的狀況是：
+
+- 考試時才發現少裝一個套件，沒有網路也裝不了
+- 圖表的中文變成方塊
+- 隨身碟換到考場電腦，磁碟代號不同，路徑全部壞掉
+- 新版 VS Code 內建 Copilot 等 AI 功能，不確定有沒有關乾淨
+- 斷網查不到 pandas / scipy 的文件
+- 寫完匯出 HTML 才發現有錯誤、執行順序亂掉，或圖片沒出來
+
+這個工具把這些都先處理好：你只要照著精靈點下一步，最後把資料夾複製到隨身碟。這是為某一門統計學課設計的，其他使用 Python / Jupyter 的統計課程也可以直接用或改來用。
+
+## 建立時會幫你準備好什麼
+
+| 項目 | 說明 |
+|---|---|
+| Python 與套件 | WinPython 3.13，加上 numpy、pandas、scipy、matplotlib、seaborn、statsmodels、sympy、openpyxl 等統計課會用到的套件 |
+| 可攜式 VS Code | 繁體中文介面，裝好 Python、Pylance、Jupyter 等擴充；**移除內建的 Copilot、關閉所有 AI 功能**；可以同步你自己電腦上的字體大小、快捷鍵（AI 相關設定一律排除） |
+| JupyterLab | 備案編輯器，在瀏覽器裡作答；考試規定要用 Jupyter 也沒問題 |
+| statkit | 這個 repo 自己寫的工具，見下面「考試時好用的功能」 |
+| 筆記與公式總表 | 讀入資料與整理、公式總表、Markdown 與 LaTeX 語法、視覺化、敘述統計、機率與離散分布、連續分布、常態與模擬，每一本都可以直接執行、複製 |
+| 你的講義與作業 | 選你自己的資料夾放進去；講義 PDF 會轉成文字，在 VS Code 按 Ctrl+Shift+F 就能全文搜尋 |
+| 離線文件 | pandas、numpy、scipy、Python 官方文件，斷網也能查 |
+| 中文字型 | 圖表的中文不會變方塊 |
+| 啟動檔 | 雙擊就能用：啟動 VS Code、啟動 JupyterLab、匯出 HTML、環境檢查、匯入考卷 |
+
+全部用**相對路徑**，換磁碟代號、換電腦都不用重新設定；也**不會讀到考場電腦上的套件**。不需要系統管理員權限，不會改系統設定。哪些部分要裝可以在精靈裡勾選（例如不要離線文件，複製到隨身碟會快很多）。
+
+## 考試時好用的功能
+
+**匯入考卷**：考試時老師給一份 ipynb，雙擊 `5_匯入考卷.bat` 選它，就會複製到 `exam\`（保留原檔名）、在最上面加好 import 與初始設定，再用 VS Code 打開。不會蓋掉你已經在寫的同名考卷。
+
+**statkit**：一行算出答案，還會印出**課程寫法的程式碼**，可以直接抄進答案。
+
+```python
+import statkit as sk
+
+sk.prob(sk.Poisson(6.6), 'X >= 10')    # 離散分布的 ≥ 會自動改成 1 - F(9)
+# Pr(X ≥ 10) = 1 - F(9) = 0.1314
+# 程式碼：print(round(1 - stats.poisson.cdf(k=9, mu=6.6), 4))
+
+sk.describe(df['Food'])                # 平均、中位、四分位（講義的算法）、變異數、偏態…，每一項附寫法
+sk.explore()                           # 互動式分布計算機：選分布、填參數，畫圖並產生程式碼
+df = sk.peek('../data/檔名.xlsx')       # 看工作表、欄位型態、缺值、前幾列，並印出讀檔程式碼
+sk.describe_by(df, 'Food', by='Region')   # 依類別分組比較；sk.corr_matrix 相關矩陣
+```
+
+其他還有次數分配表、柴比雪夫、離群值、各種統計圖、常態近似、報童模型、模擬等，`sk.help()` 會列出全部。
+
+**60 個 snippets**：在 VS Code 的 cell 打前綴再按 Tab，例如 `binom` 會跳出二項分布的寫法、`groupstat` 是分組統計、`mdtable` 是 Markdown 表格；每個都附參數說明，Ctrl+Space 可以看列表。
+
+**匯出 HTML**：Ctrl+Shift+P →「執行工作」→「匯出目前的 notebook 成 HTML」（或雙擊 `3_匯出HTML.bat`）。會先檢查有沒有寫學號、有沒有沒執行的 cell、執行順序和錯誤，圖片直接內嵌在 HTML 裡，並自動備份到 `exam\_backup\`。
+
+**環境檢查**：考前斷網雙擊 `4_環境檢查.bat`，會檢查套件、statkit、中文字型、實際執行並匯出筆記、VS Code 有沒有 AI 擴充。
+
+**筆記與常見問題**：`00_索引.ipynb` 是所有資源的入口；`常見問題.md` 整理了畫面跑掉、圖表重疊、Kernel、匯出、統計常見錯誤（例如離散分布忘了減 1）的解法。
+
+## 考試當天怎麼用
+
+1. 插隨身碟，雙擊 `1_啟動VSCode.bat`
+2. 下載老師給的考卷，雙擊 `5_匯入考卷.bat` 選它
+3. 先執行最上面那一格，依老師的格式寫上學號姓名，開始作答（有資料檔就放進 `data\`，用 `sk.peek` 看內容）
+4. 寫完：Ctrl+Shift+P →「執行工作」→「匯出目前的 notebook 成 HTML（先從頭重新執行）」
+5. 用瀏覽器打開 HTML 檢查，上傳
 
 ## 快速開始
 
@@ -85,6 +143,8 @@ powershell -ExecutionPolicy Bypass -File build.ps1 -Out D:\STAT_EXAM -StudentId 
 5. **選項**：建立位置、同步 VS Code 設定（AI 相關設定一律排除）、刪除下載快取、複製到隨身碟
 6. **確認** → 7. **建立**（顯示進度，可以停止，下次會接著做）→ 8. **完成**（環境檢查結果、使用說明、紀錄檔）
 
+![精靈的「選擇元件」頁](docs/images/wizard-components.png)
+
 ### 系統需求
 
 - Windows 10（1803 以後）或 Windows 11，64 位元；或 macOS（用 `setup_mac.command` 建立，做出來的隨身碟一樣是給 Windows 用）
@@ -107,7 +167,7 @@ STAT_EXAM/
 └─ workspace/            00_索引.ipynb、常見問題.md、exam/、data/、notes/、handouts/、homework/、statkit/、tools/
 ```
 
-考試當天：插隨身碟 → `1_啟動VSCode.bat` → 下載老師給的考卷 → `5_匯入考卷.bat` 選這份 ipynb → 依老師的格式寫上學號姓名、作答 → Ctrl+Shift+P「執行工作」→「匯出目前的 notebook 成 HTML」→ 上傳。詳細流程寫在 `使用說明.txt` 和 `00_索引.ipynb`。
+考試當天的流程見[考試當天怎麼用](#考試當天怎麼用)，隨身碟裡的 `使用說明.txt` 和 `00_索引.ipynb` 也有寫。
 
 **考前一定要演練**：拔掉網路，從隨身碟跑一次 `4_環境檢查.bat`，用 VS Code 和 JupyterLab 各寫一題、匯出 HTML；可以的話換一台電腦再試一次。
 
@@ -188,6 +248,15 @@ python tools/ci/extract_math.py > math.json; node tools/ci/check_math.js math.js
 - `.bat` / `.cmd` 只能用 **ASCII**（cmd 會把中文切錯位）
 - `.command` / `.sh` 要用 **LF** 換行（bash 遇到 CRLF 會出錯），在 macOS 內建的 bash 3.2 上也要能跑
 - 換行由 `.gitattributes` 處理
+
+**README 的精靈截圖**（`docs/images/`）：改了精靈畫面後重新產生，只會截圖、不會真的建立。一律用範例學號，不要放進真的學號姓名或講義路徑。
+
+```powershell
+'{"StudentId": "B12345678", "StudentName": "王小明", "HandoutsDir": "", "HomeworkDir": ""}' | Set-Content $env:TEMP\opts.json -Encoding UTF8
+powershell -STA -File setup\Setup-Wizard.ps1 -TestOptions $env:TEMP\opts.json -ScreenshotDir $env:TEMP\shots
+# 第 1 頁 → docs/images/wizard-welcome.png，第 4 頁 → docs/images/wizard-components.png
+Copy-Item $env:TEMP\shots\page1.png docs\images\wizard-welcome.png; Copy-Item $env:TEMP\shots\page4.png docs\images\wizard-components.png
+```
 
 **發布**：先把 `VERSION` 改成新的版本號並 commit，再打同樣版本的 tag，就會自動編譯 Setup.exe 並建立 Release（tag 跟 `VERSION` 不一致時會失敗）。使用者的精靈會用 GitHub 上最新的 Release 判斷要不要提示更新。
 

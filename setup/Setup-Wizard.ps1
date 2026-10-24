@@ -142,19 +142,42 @@ $btnCancel = Add-Button $form "取消" 656 514
 
 # ------------------------------------------------------------------ 第 1 頁：歡迎
 $pWelcome = New-Page
-Add-Label $pWelcome ("這個精靈會在你的電腦上建立一個可以帶進考場、完全離線使用的考試環境：`n`n" +
-    "　• Python 3.13（WinPython）＋ 統計學會用到的套件（numpy、pandas、scipy、matplotlib…）`n" +
-    "　• 可攜式 VS Code（已移除 Copilot、關閉所有 AI 功能），JupyterLab 當備案`n" +
-    "　• statkit 工具、各章筆記、公式總表、匯入考卷工具、常見問題`n" +
-    "　（VS Code、JupyterLab、離線文件等可以在「選擇元件」那一步決定要不要裝，預設全裝）`n`n" +
-    "需要：網路（下載約 1 GB）、約 3 GB 硬碟空間、15–40 分鐘。完成後可以直接複製到隨身碟（建議 8 GB 以上）。`n" +
-    "所有軟體都從官方網站下載；你選的講義、作業只會複製到你的電腦和隨身碟，不會上傳到任何地方。") 0 0 732 190 | Out-Null
+Add-Label $pWelcome "幫你做出可以帶進考場、完全離線的 Python 統計考試環境，複製到隨身碟、換電腦都能用。" 0 0 732 44 $FB | Out-Null
+# 兩欄：建立時準備好什麼 / 考試時好用的（完整說明在 README）
+$welcomeCols = @(
+    @{ X = 0; Title = "建立時會幫你準備好"; Items = @(
+        "Python 3.13 與統計套件（pandas、scipy…）"
+        "可攜式 VS Code：繁中介面、關閉所有 AI"
+        "JupyterLab 備案（規定要用 Jupyter 也行）"
+        "講義、作業：PDF 轉成文字，可以全文搜尋"
+        "pandas / numpy / scipy 等離線官方文件") }
+    @{ X = 376; Title = "考試時好用的"; Items = @(
+        "匯入考卷：自動加好 import 與初始設定"
+        "statkit：一行算機率、畫圖，附課程寫法"
+        "60 個 snippets：打前綴 + Tab 就有程式碼"
+        "各章筆記、公式總表、常見問題"
+        "一鍵匯出 HTML：自動檢查錯誤並備份") }
+)
+foreach ($col in $welcomeCols) {
+    Add-Label $pWelcome $col.Title $col.X 52 356 24 $FB $Accent | Out-Null
+    for ($k = 0; $k -lt $col.Items.Count; $k++) {
+        Add-Label $pWelcome "• $($col.Items[$k])" $col.X (82 + 34 * $k) 356 28 $F | Out-Null
+    }
+}
+Add-Label $pWelcome ("需要：網路（下載約 1 GB）、約 3 GB 空間、15–40 分鐘，不需要系統管理員權限。" +
+    "所有軟體都從官方網站下載；你的講義、作業不會上傳到任何地方。") 0 266 732 40 $FS $Muted | Out-Null
+$lnkReadme = New-Object Windows.Forms.LinkLabel
+$lnkReadme.AutoSize = $false; $lnkReadme.TextAlign = "MiddleRight"; $lnkReadme.Font = $F
+$lnkReadme.Text = "看完整功能介紹與使用方式 →"
+$lnkReadme.Location = New-Object Drawing.Point(432, 371); $lnkReadme.Size = New-Object Drawing.Size(300, 26)
+$lnkReadme.Add_LinkClicked({ Start-Process $D.ReadmePage })
+$pWelcome.Controls.Add($lnkReadme)
 $warn = New-Object Windows.Forms.Panel
-$warn.Location = New-Object Drawing.Point(0, 200); $warn.Size = New-Object Drawing.Size(732, 64)
+$warn.Location = New-Object Drawing.Point(0, 308); $warn.Size = New-Object Drawing.Size(732, 54)
 $warn.BackColor = [Drawing.Color]::FromArgb(255, 248, 225); $pWelcome.Controls.Add($warn)
 Add-Label $warn ("⚠ 本工具不是學校或課程的官方工具。各課程的考試規定不同（例如是否允許 VS Code、是否一定要用 Jupyter、" +
-    "能不能帶哪些檔案），使用前請自行確認考試規定。本工具已關閉 AI 功能，但是否符合規定仍由使用者自行負責。") 12 10 708 48 $F ([Drawing.Color]::FromArgb(120, 80, 0)) | Out-Null
-$chkAck = Add-CheckBox $pWelcome "我了解，會自行確認考試規定" 0 280 500 30 $S.Ack
+    "能不能帶哪些檔案），使用前請自行確認考試規定。本工具已關閉 AI 功能，但是否符合規定仍由使用者自行負責。") 12 7 708 42 $FS ([Drawing.Color]::FromArgb(120, 80, 0)) | Out-Null
+$chkAck = Add-CheckBox $pWelcome "我了解，會自行確認考試規定" 0 370 420 28 $S.Ack
 
 # ------------------------------------------------------------------ 第 2 頁：學號姓名
 $pStudent = New-Page

@@ -11,5 +11,6 @@
   "docs_scipy_index": "https://docs.scipy.org/doc/",
   "docs_python": "https://docs.python.org/{minor}/archives/python-{minor}-docs-html.zip",
   "releases_api": "https://api.github.com/repos/octofield/statistics-environment/releases/latest",
-  "releases_page": "https://github.com/octofield/statistics-environment/releases/latest"
+  "releases_page": "https://github.com/octofield/statistics-environment/releases/latest",
+  "readme_page": "https://github.com/octofield/statistics-environment#readme"
 }
