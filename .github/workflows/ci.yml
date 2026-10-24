@@ -80,7 +80,8 @@ jobs:
         run: ./setup_mac.command --out "$RUNNER_TEMP/STAT_EXAM" --skip-docs
 
       - name: 打包成 tar（幾萬個小檔案直接上傳太慢）
-        run: tar -czf "$RUNNER_TEMP/stat_exam.tar.gz" -C "$RUNNER_TEMP" STAT_EXAM
+        # COPYFILE_DISABLE：不要把 macOS 的 ._ 附屬檔打包進去
+        run: COPYFILE_DISABLE=1 tar -czf "$RUNNER_TEMP/stat_exam.tar.gz" -C "$RUNNER_TEMP" STAT_EXAM
 
       - uses: actions/upload-artifact@v4
         with:
@@ -101,9 +102,15 @@ jobs:
           name: stat-exam-mac
           path: ${{ runner.temp }}
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
       - name: 解壓縮
+        # 不用 Windows 的 tar.exe：它會把檔名轉成系統的 ANSI 編碼，英文版 Windows 的 runner 會跳過所有中文檔名
+        # （5_匯入考卷.bat、使用說明.txt、筆記…）。Python 的 tarfile 用 Unicode 寫檔，跟系統語系無關
         shell: pwsh
-        run: tar -xzf "$env:RUNNER_TEMP\stat_exam.tar.gz" -C "$env:RUNNER_TEMP"
+        run: python -c "import os, tarfile; t = os.environ['RUNNER_TEMP']; tarfile.open(os.path.join(t, 'stat_exam.tar.gz')).extractall(t, filter='tar')"
 
       - name: 安裝 VS Code 擴充（finish_setup）並跑環境檢查
         shell: cmd
