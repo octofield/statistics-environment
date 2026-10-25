@@ -222,6 +222,65 @@ def outliers_iqr(x, k=1.5, method="exclusive"):
     return out
 
 
+def outliers_z(x, k=3, ddof=1):
+    """用 z 分數找離群值（講義 03b）：|z| = |x − 平均數| / 標準差 > k 的值。
+
+    參數
+        x        : 資料（list、pandas Series、numpy array 都可以；缺值會自動略過）
+        k        : 門檻，講義用 3
+        ddof     : 1 → 樣本（x̄、s，資料是樣本時）；0 → 母體（μ、σ）
+    回傳
+        離群值（Series，保留原本的 index）
+    例
+        sk.outliers_z(df['Income'])
+    """
+    s = _series(x)
+    mean, sd = s.mean(), s.std(ddof=ddof)
+    z = (s - mean) / sd
+    out = s[z.abs() > k]
+    print(f"平均數 = {mean:.4f}，{_std_note(ddof)} = {sd:.4f}，門檻 |z| > {fmt(k)}")
+    print(f"範圍 [{mean - k * sd:.4f}, {mean + k * sd:.4f}]，離群值 {len(out)} 個：{[fmt(t) for t in out]}")
+    print(f"程式碼：z = (x - x.mean()) / x.std(ddof={ddof})；x[z.abs() > {fmt(k)}]")
+    return out
+
+
+def grouped_median(table, freqs=None, digits=4):
+    """分組資料的中位數（講義 03b）：在中位數組裡內插，不是用組中點。
+
+    第 (N+1)/2 項落在哪一組（中位數組），它是該組的第 r 項，
+    中位數 = 下限 + (r − 0.5) / 該組次數 × 組距（等於常見公式 下限 + (N/2 − 前面累積次數) / 該組次數 × 組距）
+
+    參數
+        table    : sk.freq_table 的結果；或直接給組界 list（例如 [160, 164, ..., 188]），再給 freqs
+        freqs    : 各組次數（table 是組界時才需要）
+        digits   : 顯示到小數第幾位
+    回傳
+        中位數（float）
+    例
+        sk.grouped_median([160, 164, 168, 172, 176, 180, 184, 188], [1, 1, 2, 5, 6, 4, 1])   # 講義 176.67
+    """
+    if isinstance(table, pd.DataFrame):
+        edges, f = list(table.attrs["edges"]), list(table["次數"])
+    else:
+        edges, f = list(table), list(freqs)
+    if len(edges) != len(f) + 1:
+        raise ValueError("組界要比次數多一個（例如 8 個組界、7 組次數）")
+    n = sum(f)
+    pos = (n + 1) / 2
+    before = 0
+    for i, fi in enumerate(f):
+        if before + fi >= pos:
+            lo, hi = edges[i], edges[i + 1]
+            r = pos - before
+            med = lo + (r - 0.5) / fi * (hi - lo)
+            print(f"N = {fmt(n)}，(N+1)/2 = {fmt(pos)}：落在第 {i + 1} 組 [{fmt(lo)}, {fmt(hi)})，是這組的第 {fmt(r)} 項")
+            print(f"中位數 = {fmt(lo)} + ({fmt(r)} − 0.5) / {fmt(fi)} × ({fmt(hi)} − {fmt(lo)}) = {med:.{digits}f}")
+            print(f"程式碼：print({fmt(lo)} + ({fmt(r)} - 0.5) / {fmt(fi)} * ({fmt(hi)} - {fmt(lo)}))")
+            return med
+        before += fi
+    raise ValueError("找不到中位數組，請檢查次數")
+
+
 def _within_table(x, ks, ddof, theory, theory_name):
     s = _series(x)
     mu = s.mean()
@@ -268,7 +327,7 @@ def empirical_rule(x, ks=(1, 2, 3), ddof=0):
 
 
 def zscore(x, ddof=1):
-    """z 分數 = (x − 平均數) / 標準差。
+    """z 分數 = (x − 平均數) / 標準差。所有資料的 z 分數，平均數一定是 0、標準差一定是 1。
 
     參數
         x        : 資料（list、pandas Series、numpy array 都可以；缺值會自動略過）
@@ -376,7 +435,7 @@ def describe_by(df, value, by, digits=4):
     return table
 
 
-def corr_matrix(df, cols=None, kind="r", ddof=1, digits=4):
+def corr_matrix(df, cols=None, kind="r", ddof=1, digits=4, plot=False):
     """多個變數兩兩之間的相關係數（或共變異數）矩陣，並指出相關最強的一組。
 
     參數
@@ -385,11 +444,13 @@ def corr_matrix(df, cols=None, kind="r", ddof=1, digits=4):
         kind     : 'r' → 相關係數；'cov' → 共變異數
         ddof     : 共變異數用：1 → 樣本（除以 n − 1，pandas 預設）；0 → 母體（除以 n）
         digits   : 顯示到小數第幾位
+        plot     : True 另外畫相關係數熱圖（變數多的時候一眼看出誰跟誰有關）
     回傳
         DataFrame（對稱矩陣，對角線是 1 或各變數的變異數）
     例
         sk.corr_matrix(df, ['Food', 'Income', 'Debt'])
         sk.corr_matrix(df, ['Food', 'Income'], kind='cov', ddof=0)
+        sk.corr_matrix(df, plot=True)
     """
     cols = _numeric_cols(df, cols)
     data = df[cols].astype(float)
@@ -407,4 +468,18 @@ def corr_matrix(df, cols=None, kind="r", ddof=1, digits=4):
                  for i in range(len(cols)) for j in range(i + 1, len(cols))]
         _, a, b, best = max(pairs)
         print(f"相關最強的一組：{a} 與 {b}，r = {best:.4f}")
+    if plot:
+        import matplotlib.pyplot as plt
+        r = data.corr()
+        fig, ax = plt.subplots(figsize=(1.1 * len(cols) + 3, 0.9 * len(cols) + 2))
+        im = ax.imshow(r, cmap="RdBu_r", vmin=-1, vmax=1)     # 紅正藍負、0 是白色
+        ax.set_xticks(range(len(cols)), cols, rotation=45, ha="right")
+        ax.set_yticks(range(len(cols)), cols)
+        for i in range(len(cols)):
+            for j in range(len(cols)):
+                ax.text(j, i, f"{r.iloc[i, j]:.2f}", ha="center", va="center",
+                        color="white" if abs(r.iloc[i, j]) > 0.6 else "black", fontsize=11)
+        fig.colorbar(im, ax=ax, label="r")
+        ax.set_title("Correlation matrix")
+        print("畫圖：im = plt.imshow(df[cols].corr(), cmap='RdBu_r', vmin=-1, vmax=1)；plt.colorbar(im)")
     return table.round(digits)

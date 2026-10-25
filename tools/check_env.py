@@ -50,6 +50,21 @@ def check_packages():
         bad = nonportable()
         report(not bad, "命令列執行檔可攜（jupyter、pylsp…複製到隨身碟也能用）",
                f"{', '.join(bad[:8])}{' …' if len(bad) > 8 else ''}；請執行 python workspace\\tools\\fix_launchers.py" if bad else "")
+        check_jupyter_subcommand()
+
+
+def check_jupyter_subcommand():
+    """VS Code 匯出 HTML 時執行 `python -m jupyter nbconvert`，jupyter 會在 PATH 上找 jupyter-nbconvert：
+    要找到隨身碟的那一個，不能是考場電腦（或自己電腦）上其他 Python 的。"""
+    import subprocess
+    import sysconfig
+    scripts = Path(sysconfig.get_path("scripts")).resolve()
+    found = shutil.which("jupyter-nbconvert")
+    r = subprocess.run([sys.executable, "-m", "jupyter", "nbconvert", "--version"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    ok = bool(found) and Path(found).resolve().parent == scripts and r.returncode == 0
+    detail = f"用到的是 {found}" if found and Path(found).resolve().parent != scripts else (r.stderr.strip().splitlines() or [""])[-1][:150]
+    report(ok, "VS Code 匯出 HTML 會用到隨身碟的 nbconvert", "" if ok else detail)
 
 
 def check_statkit():

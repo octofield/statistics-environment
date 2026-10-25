@@ -41,7 +41,7 @@
 
 ## 考試時好用的功能
 
-**匯入考卷**：考試時老師給一份 ipynb，雙擊 `5_匯入考卷.bat` 選它，就會複製到 `exam\`（保留原檔名）、在最上面加好 import 與初始設定，再用 VS Code 打開。不會蓋掉你已經在寫的同名考卷。
+**匯入考卷**：考試時老師給一份 ipynb，雙擊 `5_匯入考卷.bat` 選它，就會複製到 `exam\`（保留原檔名）、在標題下面加好 import 與初始設定，再用 VS Code 打開。考卷用到的資料檔如果跟考卷在同一個資料夾，會一起複製過去。不會蓋掉你已經在寫的同名考卷。
 
 **statkit**：一行算出答案，還會印出**課程寫法的程式碼**，可以直接抄進答案。
 
@@ -53,14 +53,23 @@ sk.prob(sk.Poisson(6.6), 'X >= 10')    # 離散分布的 ≥ 會自動改成 1 -
 # 程式碼：print(round(1 - stats.poisson.cdf(k=9, mu=6.6), 4))
 
 sk.describe(df['Food'])                # 平均、中位、四分位（講義的算法）、變異數、偏態…，每一項附寫法
-sk.explore()                           # 互動式分布計算機：選分布、填參數，畫圖並產生程式碼
-df = sk.peek('../data/檔名.xlsx')       # 看工作表、欄位型態、缺值、前幾列，並印出讀檔程式碼
-sk.describe_by(df, 'Food', by='Region')   # 依類別分組比較；sk.corr_matrix 相關矩陣
+df = sk.peek('檔名.xlsx')              # 看工作表、欄位型態、缺值、前幾列，並印出讀檔程式碼
+sk.describe_by(df, 'Food', by='Region')   # 依類別分組比較；sk.corr_matrix 相關矩陣（plot=True 熱圖）
+
+W = 6 + 2 * sk.Normal(50, 6) + 3 * sk.Normal(20, 2)   # 獨立常態的線性組合，結果還是常態；W.explain() 看算式
+sk.Normal(80, 10).sample_mean(4).P('X <= 75 or X >= 85')   # 樣本平均數偏離 μ 的機率（兩邊）
+sk.sample_size(sigma=10, margin=2, prob=0.95)        # 最小樣本數
+sk.joint([[0.1, 0.2, 0.2], [0.2, 0.2, 0.1]], xs=[0, 1], ys=[1, 2, 3])   # 聯合機率表：Cov、ρ、是否獨立
+sk.hist_classes(df['Food'], start=0, width=1, density=True, fit='norm')  # 直方圖疊常態曲線，並印出疊圖寫法
+sk.tidy(ax, bar_labels=True)           # 讓圖更好看：去框線、淡格線、千分位、長條標數值
+sk.explore()                           # 互動式分布計算機（VS Code 需要網路；斷網請在 JupyterLab 用）
 ```
 
-其他還有次數分配表、柴比雪夫、離群值、各種統計圖、常態近似、報童模型、模擬等，`sk.help()` 會列出全部。
+其他還有次數分配表、柴比雪夫、離群值（IQR、z 分數）、分組中位數、各種統計圖、常態近似、貝氏後驗（`sk.posterior`）、期望收益（`sk.expect`）、報童模型、模擬等，`sk.help()` 會列出全部。
 
-**60 個 snippets**：在 VS Code 的 cell 打前綴再按 Tab，例如 `binom` 會跳出二項分布的寫法、`groupstat` 是分組統計、`mdtable` 是 Markdown 表格；每個都附參數說明，Ctrl+Space 可以看列表。
+**90 多個 snippets**：在 VS Code 的 cell 打前綴再按 Tab，例如 `binom` 是二項分布、`xbar` 是樣本平均數的機率、`histfit` 是直方圖疊 pdf、`joint` 是聯合機率表、`ans` 是考卷的作答格式、`tidy` 是讓圖更好看；每個都附參數說明，Ctrl+Space 可以看列表。
+
+**筆記**：除了各章的寫法，還整理了疊圖技巧、讓圖更好看的原則（講義 02b）、敘述統計的陷阱（講義 03c）、聯合機率表、常態的線性組合、樣本平均數與樣本數，公式總表最後有「觀念陷阱」是非題整理。
 
 **匯出 HTML**：Ctrl+Shift+P →「執行工作」→「匯出目前的 notebook 成 HTML」（或雙擊 `3_匯出HTML.bat`）。會先檢查有沒有寫學號、有沒有沒執行的 cell、執行順序和錯誤，圖片直接內嵌在 HTML 裡，並自動備份到 `exam\_backup\`。
 
@@ -71,8 +80,8 @@ sk.describe_by(df, 'Food', by='Region')   # 依類別分組比較；sk.corr_matr
 ## 考試當天怎麼用
 
 1. 插隨身碟，雙擊 `1_啟動VSCode.bat`
-2. 下載老師給的考卷，雙擊 `5_匯入考卷.bat` 選它
-3. 先執行最上面那一格，依老師的格式寫上學號姓名，開始作答（有資料檔就放進 `data\`，用 `sk.peek` 看內容）
+2. 下載老師給的考卷（和資料檔），雙擊 `5_匯入考卷.bat` 選它
+3. 先執行標題下面那一格，在開頭的 Name / Student ID 寫上學號姓名，開始作答；每一小題照考卷格式 `print` 出答案（snippet `ans`）
 4. 寫完：Ctrl+Shift+P →「執行工作」→「匯出目前的 notebook 成 HTML（先從頭重新執行）」
 5. 用瀏覽器打開 HTML 檢查，上傳
 

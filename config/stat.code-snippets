@@ -51,7 +51,7 @@
         "description": "次數分配表與眾數組。range(下限, 上限 + 組距, 組距) 產生組界；right=False → 組別 [a, b)；value_counts(sort=False) 依組別順序計次；idxmax() 找次數最多的組，.mid 是組中點",
         "body": [
             "bins = range(${1:0}, ${2:40000} + ${3:5000}, ${3:5000})  # 組界：range(第一組下限, 最後上限 + 組距, 組距)",
-            "freq = pd.cut(${4:x}, bins=bins, right=False).value_counts(sort=False)  # right=False → [a, b)",
+            "freq = pd.cut(pd.Series(${4:x}), bins=bins, right=False).value_counts(sort=False)  # right=False → [a, b)；pd.Series：list 也能用",
             "print(freq)",
             "",
             "modal_class = freq.idxmax()  # 次數最多的組",
@@ -509,6 +509,349 @@
         "body": ["df = sk.peek(\"${1:../data/檔名.xlsx}\")  # 路徑；可加 sheet='工作表名稱'、n=顯示幾列$0"]
     },
 
+    // ---------- 疊圖、美化、常態與抽樣、兩個隨機變數、考卷作答格式（v1.2.0）----------
+    "直方圖疊上分布曲線（疊圖）": {
+        "scope": "python",
+        "prefix": "histfit",
+        "description": "指定組界的直方圖疊上常態 pdf，看資料像不像常態。density=True：縱軸改成密度，才能跟 pdf 比；組界 range(起點, 起點 + 組距 × (組數 + 1), 組距)；用樣本平均數、樣本標準差當常態的參數",
+        "body": [
+            "data = ${1:df['Food']}  # 資料",
+            "endpoints = range(${2:0}, ${2:0} + ${3:1} * (${4:12} + 1), ${3:1})  # 組界：起點、組距、組數",
+            "plt.hist(data, bins=endpoints, density=True, facecolor='lightgrey', edgecolor='black', label='Data')  # density=True：縱軸是密度",
+            "xs = np.linspace(min(endpoints), max(endpoints), 300)  # 畫曲線用的點：起點、終點、取幾個點",
+            "plt.plot(xs, stats.norm.pdf(xs, loc=data.mean(), scale=data.std()), color='red', label=f'ND({data.mean():.2f}, {data.std():.2f})')  # 樣本平均數、樣本標準差",
+            "plt.xticks(endpoints)",
+            "plt.xlabel('${5:Value}')",
+            "plt.ylabel('Density')",
+            "plt.legend()",
+            "plt.title('Histogram vs. normal pdf')",
+            "plt.show()$0"
+        ]
+    },
+    "多組資料疊在同一張圖": {
+        "scope": "python",
+        "prefix": "overlay",
+        "description": "兩組（或多組）直方圖疊在同一張圖比較。alpha：透明度（0～1，疊在一起才看得到）；bins：組數或組界（兩組要用一樣的）；label + legend：圖例。折線也一樣：同一張圖呼叫多次 plt.plot",
+        "body": [
+            "plt.hist(${1:a}, bins=${3:20}, alpha=0.5, edgecolor='black', label='${4:A}')  # alpha：半透明",
+            "plt.hist(${2:b}, bins=${3:20}, alpha=0.5, edgecolor='black', label='${5:B}')",
+            "plt.legend()",
+            "plt.title('${6:Title}')",
+            "plt.show()$0"
+        ]
+    },
+    "二項 pmf 疊常態近似": {
+        "scope": "python",
+        "prefix": "pmfnorm",
+        "description": "二項分布 Bi(n, p) 的 pmf 長條，疊上近似的常態 ND(np, √(np(1−p))) 曲線，看近似得好不好。n：試驗次數、p：成功機率",
+        "body": [
+            "n, p = ${1:50}, ${2:0.5}  # 二項的參數",
+            "ks = range(0, n + 1)",
+            "plt.bar(ks, stats.binom.pmf(k=ks, n=n, p=p), facecolor='lightgrey', edgecolor='black', label='Bi(n, p)')  # 二項 pmf",
+            "xs = np.linspace(0, n, 300)",
+            "plt.plot(xs, stats.norm.pdf(xs, loc=n * p, scale=math.sqrt(n * p * (1 - p))), color='red', label='ND(np, √(np(1−p)))')  # 常態近似",
+            "plt.legend()",
+            "plt.title('Binomial vs. normal approximation')",
+            "plt.show()$0"
+        ]
+    },
+    "雙軸（左右兩個縱軸）": {
+        "scope": "python",
+        "prefix": "dualaxis",
+        "description": "同一張圖左右兩個縱軸，例如柏拉圖：長條是次數（左）、折線是累積百分比（右）。ax1.twinx()：共用橫軸的第二個縱軸",
+        "body": [
+            "fig, ax1 = plt.subplots()",
+            "ax1.bar(${1:categories}, ${2:counts}, facecolor='lightgrey', edgecolor='black')  # 左邊的縱軸：次數",
+            "ax1.set_ylabel('${3:Frequency}')",
+            "ax2 = ax1.twinx()  # 共用橫軸、右邊另一個縱軸",
+            "ax2.plot(${1:categories}, ${4:cum_pct}, marker='o', color='red')  # 右邊的縱軸：例如累積百分比",
+            "ax2.set_ylabel('${5:Cumulative %}')",
+            "ax2.set_ylim(0, ${6:100})",
+            "plt.title('${7:Pareto chart}')",
+            "plt.show()$0"
+        ]
+    },
+    "次數多邊形": {
+        "scope": "python",
+        "prefix": "freqpoly",
+        "description": "次數多邊形（講義 02a）：組中點對次數連線，兩端各接一個次數 0 的點。組界 range(下限, 上限 + 組距, 組距)；right=False → 組別 [a, b)",
+        "body": [
+            "endpoints = list(range(${1:0}, ${2:12} + ${3:1}, ${3:1}))  # 組界",
+            "counts = pd.cut(${4:df['Food']}, bins=endpoints, right=False).value_counts(sort=False).tolist()  # 各組次數",
+            "mids = [(a + b) / 2 for a, b in zip(endpoints[:-1], endpoints[1:])]  # 組中點",
+            "w = ${3:1}  # 組距",
+            "plt.plot([mids[0] - w] + mids + [mids[-1] + w], [0] + counts + [0], marker='o', color='black')  # 兩端接次數 0",
+            "plt.xlabel('${5:Value}')",
+            "plt.ylabel('Frequency')",
+            "plt.title('Frequency polygon')",
+            "plt.show()$0"
+        ]
+    },
+    "肩形圖（累積相對次數）": {
+        "scope": "python",
+        "prefix": "ogive",
+        "description": "肩形圖（講義 02a）：在每組的上限畫累積相對次數，從第一個組界的 0 開始。組界 range(下限, 上限 + 組距, 組距)",
+        "body": [
+            "endpoints = list(range(${1:0}, ${2:12} + ${3:1}, ${3:1}))  # 組界",
+            "counts = pd.cut(${4:df['Food']}, bins=endpoints, right=False).value_counts(sort=False)",
+            "cum_rel = (counts.cumsum() / counts.sum()).tolist()  # 累積相對次數",
+            "plt.plot(endpoints, [0] + cum_rel, marker='o', color='black')  # 畫在每組的上限",
+            "plt.xlabel('${5:Value}')",
+            "plt.ylabel('Cumulative relative frequency')",
+            "plt.title('Ogive')",
+            "plt.show()$0"
+        ]
+    },
+    "讓圖更好看": {
+        "scope": "python",
+        "prefix": "tidy",
+        "description": "圖的美化：去掉上、右框線、淡格線（放在長條後面）、自動調整版面。放在畫完圖之後、plt.show() 之前",
+        "body": [
+            "ax = plt.gca()  # 目前這張圖",
+            "ax.spines[['top', 'right']].set_visible(False)  # 去掉上、右框線",
+            "ax.grid(axis='y', alpha=0.3)  # 淡淡的水平格線，方便讀數字",
+            "ax.set_axisbelow(True)  # 格線放在長條後面",
+            "plt.tight_layout()  # 自動調整版面，標籤不會被切掉$0"
+        ]
+    },
+    "長條上標數值": {
+        "scope": "python",
+        "prefix": "barlabel",
+        "description": "在每根長條上方標數值。fmt：數字格式（'{:,.0f}' 整數加千分位、'{:.2f}' 兩位小數、'{:.1%}' 百分比）；padding：離長條的距離",
+        "body": [
+            "bars = plt.bar(${1:categories}, ${2:counts}, facecolor='lightgrey', edgecolor='black')",
+            "plt.bar_label(bars, fmt='{:,.0f}', padding=2)  # 在每根長條上標數值$0"
+        ]
+    },
+    "座標軸加千分位": {
+        "scope": "python",
+        "prefix": "thousands",
+        "description": "縱軸的數字加千分位逗號（12000 → 12,000）。橫軸改成 xaxis",
+        "body": [
+            "from matplotlib.ticker import FuncFormatter",
+            "plt.gca().yaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:,.0f}'))  # 縱軸加千分位$0"
+        ]
+    },
+    "存成高解析度圖檔": {
+        "scope": "python",
+        "prefix": "savefig",
+        "description": "把圖存成 PNG。dpi：解析度（越大越清楚）；bbox_inches='tight'：不會切到標籤。要放在 plt.show() 之前",
+        "body": [
+            "plt.savefig('${1:figure}.png', dpi=${2:200}, bbox_inches='tight')  # 放在 plt.show() 之前",
+            "plt.show()$0"
+        ]
+    },
+    "相關係數熱圖": {
+        "scope": "python",
+        "prefix": "heatmap",
+        "description": "多個變數的相關係數矩陣畫成熱圖。cmap='RdBu_r'：紅色正相關、藍色負相關、白色接近 0；vmin、vmax 固定在 −1～1",
+        "body": [
+            "corr = ${1:df}[[${2:'Food', 'Income', 'Debt'}]].corr()  # 相關係數矩陣",
+            "plt.imshow(corr, cmap='RdBu_r', vmin=-1, vmax=1)  # 紅正藍負",
+            "plt.colorbar(label='r')",
+            "plt.xticks(range(len(corr)), corr.columns, rotation=45, ha='right')",
+            "plt.yticks(range(len(corr)), corr.columns)",
+            "for i in range(len(corr)):",
+            "    for j in range(len(corr)):",
+            "        plt.text(j, i, f'{corr.iloc[i, j]:.2f}', ha='center', va='center')  # 格子裡標數值",
+            "plt.title('Correlation matrix')",
+            "plt.show()$0"
+        ]
+    },
+    "依月份彙總的趨勢": {
+        "scope": "python",
+        "prefix": "monthly",
+        "description": "日期欄位依月份加總（或平均）後畫折線圖。pd.to_datetime：轉成日期；dt.to_period('M')：取年月；.sum() 改 .mean() 就是平均",
+        "body": [
+            "${1:df}['${2:Date}'] = pd.to_datetime(${1:df}['${2:Date}'])  # 轉成日期",
+            "monthly = ${1:df}.groupby(${1:df}['${2:Date}'].dt.to_period('M'))['${3:Food}'].sum()  # 依月份加總",
+            "monthly.index = monthly.index.astype(str)  # 2025-03 這種文字",
+            "plt.plot(monthly.index, monthly.values, marker='o', color='black')",
+            "plt.xticks(rotation=45, ha='right')",
+            "plt.ylabel('${3:Food}')",
+            "plt.title('Monthly ${3:Food}')",
+            "plt.show()$0"
+        ]
+    },
+    "常態：包含中間 p 的區間": {
+        "scope": "python",
+        "prefix": "normmid",
+        "description": "找區間 [a, b] 使中間的機率是 p（例如 68%、95%）：兩邊各留 (1−p)/2。mu：平均數、sigma：標準差（不是變異數）、p：中間的機率",
+        "body": [
+            "mu, sigma, p = ${1:100}, ${2:15}, ${3:0.95}  # 平均數、標準差、中間的機率",
+            "lower = stats.norm.ppf((1 - p) / 2, loc=mu, scale=sigma)  # 左尾 (1 − p)/2",
+            "upper = stats.norm.ppf((1 + p) / 2, loc=mu, scale=sigma)  # 右尾 (1 − p)/2",
+            "print(round(lower, 4), round(upper, 4))$0"
+        ]
+    },
+    "常態：右尾反查": {
+        "scope": "python",
+        "prefix": "normrt",
+        "description": "「q 比例的人超過 x」：Pr(X > x) = q → x = ppf(1 − q)；也可以寫 stats.norm.isf(q, ...)。q：右尾機率、loc：平均數、scale：標準差",
+        "body": [
+            "print(round(stats.norm.ppf(q=1 - ${1:0.3}, loc=${2:100}, scale=${3:15}), 4))  # Pr(X > x) = 0.3$0"
+        ]
+    },
+    "獨立常態的線性組合": {
+        "scope": "python",
+        "prefix": "normlin",
+        "description": "X ~ ND(μx, σx)、Y ~ ND(μy, σy) 獨立 → aX + bY + c ~ ND(aμx + bμy + c, √(a²σx² + b²σy²))。變異數相加，不是標準差相加；兩個人的總時間 = X1 + X2（a = b = 1）",
+        "body": [
+            "a, b, c = ${1:2}, ${2:3}, ${3:5}  # 係數與常數",
+            "mu = a * ${4:50} + b * ${5:20} + c  # 平均數：aμx + bμy + c",
+            "sigma = math.sqrt(a ** 2 * ${6:6} ** 2 + b ** 2 * ${7:2} ** 2)  # 標準差：√(a²σx² + b²σy²)",
+            "print(mu, round(sigma, 4))",
+            "print(round(1 - stats.norm.cdf(x=${8:170}, loc=mu, scale=sigma), 4))  # 例：Pr(aX + bY + c > 170)$0"
+        ]
+    },
+    "樣本平均數的機率": {
+        "scope": "python",
+        "prefix": "xbar",
+        "description": "常態母體抽 n 個：X̄ ~ ND(μ, σ/√n)。se = σ/√n；「偏離 μ 超過 d」要算兩邊，所以 ×2。mu、sigma：母體平均數、標準差；n：樣本大小",
+        "body": [
+            "mu, sigma, n = ${1:80}, ${2:10}, ${3:4}  # 母體平均數、母體標準差、樣本大小",
+            "se = sigma / math.sqrt(n)  # 樣本平均數的標準差 σ/√n",
+            "print(round(1 - stats.norm.cdf(x=${4:82}, loc=mu, scale=se), 4))  # Pr(X̄ > 82)",
+            "print(round(2 * stats.norm.sf(mu + ${5:5}, loc=mu, scale=se), 4))  # Pr(|X̄ − μ| > d)：兩邊所以 ×2$0"
+        ]
+    },
+    "最小樣本數": {
+        "scope": "python",
+        "prefix": "samplesize",
+        "description": "要讓 Pr(|X̄ − μ| ≤ d) ≥ prob：n ≥ (zσ/d)²，z = ppf((1 + prob)/2)，無條件進位。sigma：母體標準差、d：允許誤差、prob：落在誤差內的機率（偏離超過 d 的機率 ≤ 1% 就是 0.99）",
+        "body": [
+            "sigma, d, prob = ${1:10}, ${2:2}, ${3:0.95}  # 母體標準差、允許誤差、機率",
+            "z = stats.norm.ppf((1 + prob) / 2)  # 兩邊各 (1 − prob)/2",
+            "n = math.ceil((z * sigma / d) ** 2)  # n ≥ (zσ/d)²，無條件進位",
+            "print(n)$0"
+        ]
+    },
+    "資料的 z 分數": {
+        "scope": "python",
+        "prefix": "zdata",
+        "description": "每筆資料的 z 分數 = (x − 平均數) / 標準差；z 分數的平均數一定是 0、標準差一定是 1。x.std() 是樣本標準差（ddof=1），母體用 x.std(ddof=0)",
+        "body": [
+            "x = ${1:df['Food']}",
+            "z = (x - x.mean()) / x.std()  # 樣本標準差（ddof=1）",
+            "print(z.head())",
+            "print(round(z.mean(), 4), round(z.std(), 4))  # 一定是 0 和 1$0"
+        ]
+    },
+    "z 分數找離群值": {
+        "scope": "python",
+        "prefix": "zout",
+        "description": "講義 03b：|z| > 3 的資料是離群值（樣本資料用 x̄ 和 s）。門檻可以改",
+        "body": [
+            "x = ${1:df['Food']}",
+            "z = (x - x.mean()) / x.std()",
+            "print(x[z.abs() > ${2:3}])  # |z| > 3$0"
+        ]
+    },
+    "聯合機率表：共變異數、相關、獨立": {
+        "scope": "python",
+        "prefix": "joint",
+        "description": "兩個隨機變數的聯合機率表。p[i][j] = Pr(X = xs[i], Y = ys[j])；邊際機率是列、欄加總；Cov = E[XY] − μxμy；ρ = Cov / (σxσy)；獨立要每一格都等於邊際相乘（Cov = 0 不一定獨立）",
+        "body": [
+            "xs = [${1:0, 1}]  # X 的可能值（列）",
+            "ys = [${2:1, 2, 3}]  # Y 的可能值（欄）",
+            "p = [[${3:0.1, 0.2, 0.2}], [${4:0.2, 0.2, 0.1}]]  # 聯合機率",
+            "px = [sum(row) for row in p]  # 邊際 Pr(X = x)",
+            "py = [sum(p[i][j] for i in range(len(xs))) for j in range(len(ys))]  # 邊際 Pr(Y = y)",
+            "mu_x = sum(x * q for x, q in zip(xs, px))",
+            "mu_y = sum(y * q for y, q in zip(ys, py))",
+            "exy = sum(xs[i] * ys[j] * p[i][j] for i in range(len(xs)) for j in range(len(ys)))  # E[XY]",
+            "cov = exy - mu_x * mu_y  # Cov(X, Y) = E[XY] − μxμy",
+            "var_x = sum(x ** 2 * q for x, q in zip(xs, px)) - mu_x ** 2",
+            "var_y = sum(y ** 2 * q for y, q in zip(ys, py)) - mu_y ** 2",
+            "print(round(cov, 4), round(cov / math.sqrt(var_x * var_y), 4))  # 共變異數、相關係數",
+            "print(all(abs(p[i][j] - px[i] * py[j]) < 1e-9 for i in range(len(xs)) for j in range(len(ys))))  # True = 獨立$0"
+        ]
+    },
+    "條件機率": {
+        "scope": "python",
+        "prefix": "condp",
+        "description": "Pr(A | B) = Pr(A ∩ B) / Pr(B)：聯合機率除以「條件那一邊」的邊際機率",
+        "body": [
+            "p_joint = ${1:0.111}  # Pr(A ∩ B)",
+            "p_b = ${2:0.49}  # Pr(B)",
+            "print(round(p_joint / p_b, 4))  # Pr(A | B)$0"
+        ]
+    },
+    "貝氏後驗（參數的離散先驗）": {
+        "scope": "python",
+        "prefix": "posterior",
+        "description": "後驗 = 先驗 × 概似 / Σ(先驗 × 概似)。params：參數可能的值；prior：先驗機率；likelihood：每個參數下觀察到這個結果的機率（例如二項 pmf、幾何 pmf）",
+        "body": [
+            "params = [${1:0.2, 0.5, 0.8}]  # 參數的可能值",
+            "prior = [${2:0.25, 0.5, 0.25}]  # 先驗機率",
+            "likelihood = [stats.${3:binom}.pmf(${4:4, 6}, p) for p in params]  # 每個參數下觀察到這個結果的機率",
+            "total = sum(a * b for a, b in zip(prior, likelihood))  # 全機率 Pr(結果)",
+            "posterior = [a * b / total for a, b in zip(prior, likelihood)]  # 貝氏定理",
+            "print([round(v, 4) for v in posterior])$0"
+        ]
+    },
+    "期望收益 E[g(X)]": {
+        "scope": "python",
+        "prefix": "expg",
+        "description": "含獎金、罰款的期望值：E[g(X)] = Σ g(x)·Pr(X = x)。lam：卜瓦松的 λ；g(x)：每個 x 對應的收益（條件寫成 (x >= 10) 會是 True=1／False=0）；range 的上限取到機率可以忽略為止",
+        "body": [
+            "lam = ${1:6}  # 卜瓦松的 λ",
+            "def g(x):  # 每個 x 對應的收益",
+            "    return ${2:3 * x + 15 * (x >= 10) - 5 * (x <= 3)}",
+            "print(round(sum(g(x) * stats.poisson.pmf(k=x, mu=lam) for x in range(0, ${3:100})), 4))  # E[g(X)]$0"
+        ]
+    },
+    "作答格式：小題": {
+        "scope": "python",
+        "prefix": "ans",
+        "description": "考卷的作答格式：印出分隔線與「My answer for Subproblem 2A starts here:」，接著寫這一小題的程式碼。A 換成小題代號；problem_id 是考卷那一格開頭的題號",
+        "body": [
+            "print('===========================================================')",
+            "print(f'My answer for Subproblem {problem_id}${1:A} starts here:')",
+            "$0"
+        ]
+    },
+    "作答格式：整題": {
+        "scope": "python",
+        "prefix": "ansblock",
+        "description": "考卷一整題的作答骨架：problem_id + 每個小題的分隔線與標題。答案用 print 印出來；不需要四捨五入（除非題目要求）",
+        "body": [
+            "problem_id = ${1:2}",
+            "print('===========================================================')",
+            "print(f'My answer for Subproblem {problem_id}A starts here:')",
+            "${2:# 作答}",
+            "",
+            "print('===========================================================')",
+            "print(f'My answer for Subproblem {problem_id}B starts here:')",
+            "$0"
+        ]
+    },
+    "statkit 樣本平均數": {
+        "scope": "python",
+        "prefix": "skxbar",
+        "description": "sk.Normal(μ, σ).sample_mean(n)：樣本平均數 X̄ ~ ND(μ, σ/√n)；.P('X > 82') 算機率；兩邊的尾巴寫 'X <= 74 or X >= 86'。都會印出課程寫法",
+        "body": [
+            "Xbar = sk.Normal(${1:80}, ${2:10}).sample_mean(${3:4})  # X̄ ~ ND(μ, σ/√n)",
+            "Xbar.P('${4:X > 82}')  # 兩邊的尾巴：'X <= 74 or X >= 86'$0"
+        ]
+    },
+    "statkit 聯合機率表": {
+        "scope": "python",
+        "prefix": "skjoint",
+        "description": "sk.joint(聯合機率, xs=X 的值, ys=Y 的值)：邊際機率、E[XY]、Cov、ρ、是否獨立；conditional='x' 另外印條件機率。也可以用事件名稱，例如 xs=['Important', 'Unimportant']",
+        "body": [
+            "sk.joint([[${1:0.1, 0.2, 0.2}], [${2:0.2, 0.2, 0.1}]], xs=[${3:0, 1}], ys=[${4:1, 2, 3}])$0"
+        ]
+    },
+    "statkit 直方圖疊分布": {
+        "scope": "python",
+        "prefix": "skfit",
+        "description": "sk.hist_classes(資料, start=第一組下限, width=組距, k=組數, density=True, fit='norm')：直方圖疊常態曲線（fit 也可以給 sk.Expon(0.5) 等分布），並印出課程寫法",
+        "body": [
+            "sk.hist_classes(${1:df['Food']}, start=${2:0}, width=${3:1}, density=True, fit='norm')$0"
+        ]
+    },
+
     // ======================== Markdown（markdown cell 內） ========================
     "題目 / 作答區": {
         "scope": "markdown",
@@ -572,6 +915,38 @@
             "&= ${3:\\frac{3\\}{4\\}}",
             "\\end{aligned}",
             "$$$0"
+        ]
+    },
+    "樣本平均數的分布": {
+        "scope": "markdown",
+        "prefix": "mdxbar",
+        "description": "常態母體抽 n 個：樣本平均數 X̄ ~ ND(μ, σ/√n)；n 夠大時不論母體分布都近似（中央極限定理）",
+        "body": [
+            "$\\bar{X} \\sim \\text{ND}\\left(\\mu, \\frac{\\sigma}{\\sqrt{n}}\\right)$$0"
+        ]
+    },
+    "常態的線性組合": {
+        "scope": "markdown",
+        "prefix": "mdlin",
+        "description": "獨立常態的線性組合還是常態：平均數照係數相加、變異數乘係數平方相加",
+        "body": [
+            "$\\sum_{i} a_i X_i \\sim \\text{ND}\\left(\\sum_{i} a_i \\mu_i, \\sqrt{\\sum_{i} a_i^2 \\sigma_i^2}\\right)$$0"
+        ]
+    },
+    "兩個隨機變數的共變異數與相關係數": {
+        "scope": "markdown",
+        "prefix": "mdcov",
+        "description": "Cov(X, Y) = E[XY] − μxμy；ρ = Cov / (σxσy)；Cov = 0 不代表獨立",
+        "body": [
+            "$\\text{Cov}(X, Y) = E[XY] - \\mu_X \\mu_Y, \\quad \\rho_{X,Y} = \\frac{\\text{Cov}(X, Y)}{\\sigma_X \\sigma_Y}$$0"
+        ]
+    },
+    "隨機變數的柴比雪夫定理": {
+        "scope": "markdown",
+        "prefix": "mdcheb2",
+        "description": "任何分布：離平均數 k 個標準差以上的機率不超過 1/k²（k > 1）",
+        "body": [
+            "$\\Pr(|X - \\mu| \\ge k\\sigma) \\le \\frac{1}{k^2}$$0"
         ]
     }
 }

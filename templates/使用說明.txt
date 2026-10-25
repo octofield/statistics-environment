@@ -14,8 +14,10 @@
 【匯入考卷】（考試時老師會給一份 .ipynb）
   1. 把考卷下載下來（從 COOL 下載的通常在「下載」資料夾）
   2. 雙擊 5_匯入考卷.bat，在跳出的視窗選這份 .ipynb（也可以直接把檔案拖到 5_匯入考卷.bat 上）
-  3. 會複製到 workspace\exam\（檔名跟老師給的一樣），在最上面加一格 import 與初始設定，並用 VS Code 打開
-     - 先執行最上面那一格，再開始作答
+  3. 會複製到 workspace\exam\（檔名跟老師給的一樣），在標題下面加一格 import 與初始設定，並用 VS Code 打開
+     - 先執行那一格，再開始作答；答案用 print 印出來（snippet ans、ansblock 是考卷的作答格式）
+     - 考卷用到的資料檔（例如 pd.read_excel("xxx.xlsx")）如果跟考卷在同一個資料夾，會一起複製到 exam\；
+       找不到的話會提醒你：下載後放到 exam\（跟考卷同一個資料夾）
      - exam\ 裡已經有同名的考卷時不會覆蓋：直接 Enter 打開已經有的那份，輸入 n 另存一份新的
   4. 依老師的格式在考卷裡寫上學號、姓名（不會自動幫你填）
      - 匯入後畫面會提醒你學號姓名；匯出 HTML 時如果考卷裡找不到你的學號，也會警告
@@ -25,7 +27,7 @@
   workspace\00_索引.ipynb   所有資源的入口、考試流程、快捷鍵、snippets 列表、分布計算機
   workspace\常見問題.md     遇到問題先看這裡（VS Code 開啟後按 Ctrl+Shift+V 看排版好的版本）
   workspace\exam\           作答區（匯入的考卷在這裡）；_backup\ 是每次匯出時的備份
-  workspace\data\           考試資料放這裡（先用 sk.peek('../data/檔名.xlsx') 看內容）
+  workspace\data\           自己練習用的資料（在 exam\ 裡讀要寫 '../data/檔名.xlsx'）；考卷的資料檔要跟考卷一起放在 exam\
   workspace\notes\          公式總表、Markdown 與 LaTeX 語法、各章速查筆記
   workspace\handouts\       講義（_text\ 是 PDF 文字，VS Code Ctrl+Shift+F 可搜尋）
   workspace\homework\       作業
@@ -47,5 +49,6 @@
 【注意】
   - 匯出的 HTML 用網路載入公式字型，斷網時本機預覽公式可能顯示成原始 LaTeX，上傳後正常
   - sk.explore() 的互動畫面不會出現在 HTML 裡，請把它產生的程式碼貼到 cell 執行
+  - sk.explore() 在 VS Code 裡需要網路才顯示得出輸入框；考試斷網時請在 JupyterLab 用，或直接寫 X.P('X >= 10')
   - 第一次在新電腦上啟動會比較慢（建立字型快取），之後就快了
   - 拔隨身碟前先關 VS Code / JupyterLab，再「安全地移除硬體」

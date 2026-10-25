@@ -60,6 +60,11 @@ jobs:
           "%PYTHON%" "%RUNNER_TEMP%\STAT_EXAM_moved\workspace\tools\fix_launchers.py" --check || exit /b 1
           jupyter --version || exit /b 1
           pylsp --version || exit /b 1
+          rem 模擬考場電腦裝了別的 Python：PATH 最前面有一個壞掉的 jupyter-nbconvert，VS Code 的匯出還是要用到隨身碟的
+          mkdir "%RUNNER_TEMP%\decoy"
+          > "%RUNNER_TEMP%\decoy\jupyter-nbconvert.cmd" echo @echo DECOY jupyter-nbconvert ^& exit /b 1
+          set "PATH=%RUNNER_TEMP%\decoy;%PATH%"
+          "%PYTHON%" -m jupyter nbconvert --version || exit /b 1
 
       - name: 不裝 JupyterLab 的建立（環境檢查要通過、不放 2_啟動JupyterLab.bat）
         shell: powershell

@@ -11,8 +11,8 @@ from .desc import _series, freq_table
 
 
 def hist_classes(x, start=None, width=None, k=None, edges=None, right=False, relative=False,
-                 ax=None, xlabel=None, ylabel=None, title=None, show_table=False):
-    """依組界畫直方圖（分組跟 sk.freq_table 完全一致）。
+                 ax=None, xlabel=None, ylabel=None, title=None, show_table=False, fit=None, density=False):
+    """依組界畫直方圖（分組跟 sk.freq_table 完全一致），可以疊上分布曲線（HW07：看資料像哪個分布）。
 
     參數
         x        : 資料（list、pandas Series、numpy array 都可以；缺值會自動略過）
@@ -22,6 +22,9 @@ def hist_classes(x, start=None, width=None, k=None, edges=None, right=False, rel
         edges    : 直接指定組界，例如 [160, 164, 168, ...]（給了就不用 start / width）
         right    : False → 組別 [a, b)（作業的寫法）；True → (a, b]
         relative : True → 縱軸畫相對次數；False → 次數
+        density  : True → 縱軸畫密度（相對次數 ÷ 組距，面積和為 1，可以直接跟 pdf 比）
+        fit      : 疊上分布曲線：'norm' → 用樣本平均數、樣本標準差的常態；
+                   也可以直接給分布，例如 sk.Normal(70, 10)、sk.Expon(0.5)。曲線會依縱軸自動縮放
         show_table : True 會一併顯示次數分配表
         ax       : 畫在哪個子圖（例如 plt.subplots 的 axes[0]）；不給就開一張新圖
         xlabel / ylabel / title : 座標軸名稱、標題（不給就用預設值或資料的欄位名稱）
@@ -29,23 +32,155 @@ def hist_classes(x, start=None, width=None, k=None, edges=None, right=False, rel
         ax（可以再用 ax.set_title(...) 等調整）
     例
         sk.hist_classes(debt, start=0, width=5000, xlabel='Debt ($)')
+        sk.hist_classes(x, start=-20, width=15, k=12, density=True, fit='norm')
     """
     table = freq_table(x, start=start, width=width, k=k, edges=edges, right=right)
     e = table.attrs["edges"]
     ax = new_ax(ax, figsize=(9, 5))
-    heights = table["相對次數"] if relative else table["次數"]
     widths = np.diff(e)
-    ax.bar(e[:-1], heights, width=widths, align="edge", color=FACE, edgecolor=EDGE)
+    if density:
+        heights = table["次數"] / table["次數"].sum() / widths
+    else:
+        heights = table["相對次數"] if relative else table["次數"]
+    ax.bar(e[:-1], heights, width=widths, align="edge", color=FACE, edgecolor=EDGE,
+           label="Data" if fit is not None else None)
     ax.set_xticks(e)
     if len(e) > 12:
         ax.tick_params(axis="x", labelrotation=45)
     ax.set_xlabel(xlabel or getattr(x, "name", None) or "Value")
-    ax.set_ylabel(ylabel or ("Relative frequency" if relative else "Frequency"))
+    ax.set_ylabel(ylabel or ("Density" if density else "Relative frequency" if relative else "Frequency"))
+    if fit is not None:
+        _overlay_fit(ax, _series(x), fit, e, density=density, relative=relative)
     if title:
         ax.set_title(title)
     if show_table:
         from IPython.display import display
         display(table)
+    return ax
+
+
+def _overlay_fit(ax, s, fit, edges, density=False, relative=False):
+    """在直方圖上疊分布曲線，並印出課程寫法。縱軸是次數時，pdf 要乘上「資料筆數 × 組距」。"""
+    from .dist import Normal, _as_dist
+    if isinstance(fit, str):
+        if fit != "norm":
+            raise ValueError("fit 目前只支援 'norm'，其他分布請直接給分布物件，例如 fit=sk.Expon(0.5)")
+        d = Normal(s.mean(), s.std())
+        how = f"樣本平均數 {s.mean():.4f}、樣本標準差 {s.std():.4f}"
+    else:
+        d, how = _as_dist(fit), "指定的參數"
+    w = float(np.mean(np.diff(edges)))
+    scale = 1 if density else (w if relative else len(s) * w)
+    grid = np.linspace(edges[0], edges[-1], 400)
+    if d.discrete:
+        ks = np.arange(int(np.ceil(edges[0])), int(np.floor(edges[-1])) + 1)
+        ax.plot(ks, d.frozen.pmf(ks) * scale, "o-", color=ACCENT, lw=2, label=d.label)
+    else:
+        ax.plot(grid, d.frozen.pdf(grid) * scale, color=ACCENT, lw=2, label=d.label)
+    ax.legend()
+    print(f"疊上 {d.label}（{how}）")
+    factor = "" if density else (f" * {fmt(w)}" if relative else f" * {len(s)} * {fmt(w)}")
+    if d.discrete:
+        grid_line = f"  xs = np.arange({int(np.ceil(edges[0]))}, {int(np.floor(edges[-1])) + 1})   # 整數點"
+        curve = f"plt.plot(xs, {d.code('pmf', 'k', 'xs')}{factor}, 'o-', color='red', label='{d.label}')"
+    else:
+        grid_line = f"  xs = np.linspace({fmt(edges[0])}, {fmt(edges[-1])}, 300)   # 起點、終點、取幾個點"
+        kw = "loc=x.mean(), scale=x.std()" if isinstance(fit, str) else d.kw
+        curve = f"plt.plot(xs, stats.{d.name}.pdf(xs, {kw}){factor}, color='red', label='{d.label}')"
+    print("課程寫法（疊圖）：\n"
+          f"  plt.hist(x, bins=endpoints{', density=True' if density else ''}, facecolor='lightgrey', edgecolor='black', label='Data')\n"
+          f"{grid_line}\n  {curve}\n  plt.legend()"
+          + ("" if density else "\n  （縱軸是次數，所以 pdf 要乘上 資料筆數 × 組距；用 density=True 就不用乘）"))
+
+
+def freq_polygon(x, start=None, width=None, k=None, edges=None, right=False, relative=False,
+                 ax=None, xlabel=None, ylabel=None, title=None, with_hist=False):
+    """次數多邊形（講義 02a）：把每一組的組中點和次數連成折線，兩端各接一個次數為 0 的點。
+
+    參數
+        x, start, width, k, edges, right : 分組方式，跟 sk.freq_table 一樣
+        relative : True → 縱軸畫相對次數
+        with_hist : True 先畫直方圖再疊上折線
+        ax       : 畫在哪個子圖；不給就開一張新圖
+        xlabel / ylabel / title : 座標軸名稱、標題
+    回傳
+        ax
+    例
+        sk.freq_polygon(values, start=160, width=4, with_hist=True)
+    """
+    import contextlib
+    import io
+    with contextlib.redirect_stdout(io.StringIO()):
+        table = freq_table(x, start=start, width=width, k=k, edges=edges, right=right)
+    e = table.attrs["edges"]
+    w = e[1] - e[0]
+    ys = list(table["相對次數"] if relative else table["次數"])
+    mids = list(table["組中點"])
+    xs_line = [mids[0] - w] + mids + [mids[-1] + w]
+    ys_line = [0] + ys + [0]
+    if with_hist:
+        ax = hist_classes(x, edges=e, right=right, relative=relative, ax=ax)
+    ax = new_ax(ax, figsize=(9, 5))
+    ax.plot(xs_line, ys_line, marker="o", color=ACCENT if with_hist else EDGE, lw=2)
+    ax.set_xlabel(xlabel or getattr(x, "name", None) or "Value")
+    ax.set_ylabel(ylabel or ("Relative frequency" if relative else "Frequency"))
+    if title:
+        ax.set_title(title)
+    print("課程寫法：組中點 mids、次數 counts → plt.plot([mids[0] - 組距] + mids + [mids[-1] + 組距], [0] + counts + [0], marker='o')")
+    return ax
+
+
+def tidy(ax=None, thousands=False, grid=True, bar_labels=False, legend=None, rotate=None, show_code=True):
+    """一行讓圖更好看（講義 02b 的原則）：去掉上、右框線、淡格線、千分位、長條上標數值。
+
+    參數
+        ax         : 要調整的圖（sk 的畫圖函式會回傳 ax）；不給就用目前這張
+        thousands  : True → 縱軸數字加千分位逗號（例如 12,000）；'x' → 橫軸；'both' → 兩個都加
+        grid       : True → 加上淡淡的水平格線，方便讀數字
+        bar_labels : True → 在每根長條上標數值（長條圖用）；也可以給格式，例如 '{:.1f}'
+        legend     : 圖例位置，例如 'upper left'、'best'；None 不動
+        rotate     : 橫軸刻度旋轉幾度，例如 45（類別名稱太長時）
+        show_code  : True → 印出等價的課程寫法
+    回傳
+        ax
+    例
+        ax = sk.bar(df['Region'])
+        sk.tidy(ax, bar_labels=True)
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.ticker import FuncFormatter
+
+    ax = ax or plt.gca()
+    code = []
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    code.append("ax.spines[['top', 'right']].set_visible(False)        # 去掉上、右框線")
+    if grid:
+        ax.grid(axis="y", alpha=0.3)
+        ax.set_axisbelow(True)
+        code.append("ax.grid(axis='y', alpha=0.3); ax.set_axisbelow(True)  # 淡格線、放在長條後面")
+    if thousands:
+        f = FuncFormatter(lambda v, _: f"{v:,.0f}")
+        if thousands in (True, "y", "both"):
+            ax.yaxis.set_major_formatter(f)
+        if thousands in ("x", "both"):
+            ax.xaxis.set_major_formatter(f)
+        code.append("ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:,.0f}'))   # 千分位")
+    if bar_labels:
+        fmt_ = bar_labels if isinstance(bar_labels, str) else "{:,.0f}"
+        for c in ax.containers:
+            ax.bar_label(c, fmt=fmt_, padding=2, fontsize="small")
+        code.append(f"ax.bar_label(ax.containers[0], fmt='{fmt_}', padding=2)   # 長條上標數值")
+    if legend:
+        ax.legend(loc=legend, frameon=False)
+        code.append(f"ax.legend(loc='{legend}', frameon=False)")
+    if rotate:
+        for t in ax.get_xticklabels():
+            t.set_rotation(rotate)
+            t.set_ha("right")
+        code.append(f"plt.xticks(rotation={rotate}, ha='right')")
+    if show_code:
+        print("課程寫法（ax = plt.gca()；千分位要 from matplotlib.ticker import FuncFormatter）：\n  " + "\n  ".join(code))
     return ax
 
 
@@ -140,12 +275,14 @@ def box(data, labels=None, vert=True, showmeans=False, ax=None, ylabel=None, tit
         groups = [_series(data)]
     labels = labels or [getattr(g, "name", None) or str(i + 1) for i, g in enumerate(groups)]
     ax = new_ax(ax, figsize=(max(5, 2.2 * len(groups)), 5))
-    kw = dict(vert=vert, showmeans=showmeans, widths=0.4,
-              medianprops=dict(color=EDGE), boxprops=dict(color=EDGE))
-    try:
-        ax.boxplot(groups, tick_labels=labels, **kw)
-    except TypeError:          # matplotlib < 3.9
-        ax.boxplot(groups, labels=labels, **kw)
+    kw = dict(showmeans=showmeans, widths=0.4, medianprops=dict(color=EDGE), boxprops=dict(color=EDGE))
+    try:                       # matplotlib ≥ 3.10：vert 要改成 orientation
+        ax.boxplot(groups, tick_labels=labels, orientation="vertical" if vert else "horizontal", **kw)
+    except TypeError:
+        try:                   # matplotlib 3.9
+            ax.boxplot(groups, tick_labels=labels, vert=vert, **kw)
+        except TypeError:      # matplotlib < 3.9
+            ax.boxplot(groups, labels=labels, vert=vert, **kw)
     if ylabel:
         (ax.set_ylabel if vert else ax.set_xlabel)(ylabel)
     if title:

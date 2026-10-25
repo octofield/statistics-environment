@@ -143,6 +143,56 @@ def run(verbose=True):
     check("corr_matrix r", r.loc["身高", "體重"], round(np.corrcoef(HEIGHTS, weights)[0, 1], 4))
     check("corr_matrix 母體共變異數", pcov.loc["身高", "體重"], round(np.cov(HEIGHTS, weights, ddof=0)[0, 1], 4))
 
+    # 常態的運算、樣本平均數（講義 06a）
+    with redirect_stdout(io.StringIO()):
+        xbar = sk.Normal(80, 10).sample_mean(4)
+        check("06a 例題 1 Pr(X̄ > 82)", round(xbar.P("X > 82", show=False), 3), 0.345)
+        check("06a 例題 1 Pr(X̄ < 76)", round(xbar.P("X < 76", show=False), 3), 0.212)
+        check("06a Pepsi Pr(X̄ ≥ 1.316)", round(sk.Normal(1.189, 0.049).P("X >= 1.316", show=False), 4), 0.0048)
+        X, Y = sk.Normal(50, 6), sk.Normal(20, 2)
+        W = 3 - 2 * X + 0.5 * Y
+        check("線性組合 μ", W.mu, 3 - 100 + 10)
+        check("線性組合 σ", W.sigma, math.sqrt(4 * 36 + 0.25 * 4))
+        # eval 只執行 statkit 自己產生的程式碼字串，確認貼進答案的寫法算出來一樣
+        check("線性組合的程式碼", float(eval(f"stats.norm.cdf(x=-80, {W.kw})", {"stats": stats, "math": math})),
+              stats.norm.cdf(-80, -87, math.sqrt(145)))
+        check("同一個變數相加 X + X = 2X", (X + X).sigma, 12)
+        check("或：雙尾", sk.Normal(6.5, 2).P("X >= 10 or X <= 0", show=False),
+              stats.norm.sf(10, 6.5, 2) + stats.norm.cdf(0, 6.5, 2))
+        check("或：離散", sk.Binom(10, 0.3).P("X <= 1 或 X >= 6", show=False),
+              stats.binom.cdf(1, 10, 0.3) + stats.binom.sf(5, 10, 0.3))
+        check("sample_size", sk.sample_size(10, 2, 0.95), 97)
+        a, b = sk.middle_interval(sk.Normal(0, 1), 0.95)
+        check("middle_interval", b, stats.norm.ppf(0.975))
+
+        # 分組中位數、z 分數離群值（講義 03b）
+        check("03b 分組中位數", round(sk.grouped_median([160, 164, 168, 172, 176, 180, 184, 188],
+                                                      [1, 1, 2, 5, 6, 4, 1]), 2), 176.67)
+        check("z 分數離群值", len(sk.outliers_z(HEIGHTS + [250])), 1)
+
+        # 聯合機率表（講義 04a）、兩個隨機變數
+        dry = sk.joint([[0.459, 0.051], [0.111, 0.379]], xs=["I", "U"], ys=["S", "N"], conditional="x")
+        check("04a Pr(S|U)", round(dry["cond_y_given_x"].loc["U", "S"], 3), 0.227)
+        check("04a p37 獨立", sk.joint([[0.21, 0.35, 0.14], [0.09, 0.15, 0.06]])["independent"], True)
+        un = sk.joint([[0.2, 0.1, 0.3], [0.1, 0.2, 0.1]], xs=[2, 3], ys=[1, 4, 5])
+        check("不相關但不獨立 Cov", un["cov"], 0)
+        check("不相關但不獨立", un["independent"], False)
+
+        # 貝氏後驗、E[g(X)]
+        post = sk.posterior({0.3: 0.5, 0.7: 0.5}, lambda p: stats.binom.pmf(2, 3, p))
+        lik = [stats.binom.pmf(2, 3, 0.3), stats.binom.pmf(2, 3, 0.7)]
+        check("posterior", post.loc["0.7", "後驗"], round(lik[1] / sum(lik), 4))
+        g = lambda x: 3 * x + 10 * (x >= 6) - 5 * (x <= 2)
+        check("expect", sk.expect(sk.Poisson(4), g),
+              3 * 4 + 10 * stats.poisson.sf(5, 4) - 5 * stats.poisson.cdf(2, 4), tol=1e-8)
+
+        # 疊圖、美化（只確認跑得過）
+        sk.hist_classes(HEIGHTS, start=160, width=4, density=True, fit="norm")
+        sk.freq_polygon(HEIGHTS, start=160, width=4, with_hist=True)
+        sk.tidy(sk.bar(["A", "B", "A"]), bar_labels=True, thousands=True)
+        sk.corr_matrix(multi, ["身高", "體重"], plot=True)
+        sk.plot_dist(xbar, "X <= 76 or X >= 84")
+
     if verbose:
         if failures:
             print("statkit 自我測試失敗：")

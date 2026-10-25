@@ -301,9 +301,9 @@ def main():
             merge_move(site / name, pydir / name)
     for name in ("bin", "Scripts"):
         shutil.rmtree(site / name, ignore_errors=True)
-    (site / "statkit_workspace.pth").write_text(
-        "import os, sys; sys.path.append(os.path.normpath(os.path.join(os.path.dirname(sys.executable), '..', '..', 'workspace')))\n",
-        encoding="ascii")
+    # 跟 build.ps1 一樣：Python 每次啟動都執行 _stat_exam_env（statkit、PATH、不讀 user site-packages）
+    shutil.copy2(REPO / "setup" / "_stat_exam_env.py", site / "_stat_exam_env.py")
+    (site / "statkit_workspace.pth").write_text("import _stat_exam_env\n", encoding="ascii")
     lab_settings = pydir / "share" / "jupyter" / "lab" / "settings"
     lab_settings.mkdir(parents=True, exist_ok=True)
     shutil.copy2(REPO / "config" / "jupyterlab-overrides.json", lab_settings / "overrides.json")

@@ -154,7 +154,7 @@ $welcomeCols = @(
     @{ X = 376; Title = "考試時好用的"; Items = @(
         "匯入考卷：自動加好 import 與初始設定"
         "statkit：一行算機率、畫圖，附課程寫法"
-        "60 個 snippets：打前綴 + Tab 就有程式碼"
+        "90 多個 snippets：打前綴 + Tab"
         "各章筆記、公式總表、常見問題"
         "一鍵匯出 HTML：自動檢查錯誤並備份") }
 )

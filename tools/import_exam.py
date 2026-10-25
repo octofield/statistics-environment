@@ -1,4 +1,5 @@
-"""匯入老師給的考卷：把 .ipynb 複製到 exam/（保留原檔名），在最上面加上 import 與初始設定，再打開。
+"""匯入老師給的考卷：把 .ipynb 複製到 exam/（保留原檔名），在標題後面加上 import 與初始設定，再打開。
+考卷用到的資料檔（例如 pd.read_excel("xxx.xlsx")）如果跟考卷放在同一個資料夾，會一起複製過去。
 
     python tools/import_exam.py [考卷.ipynb ...] [--open]
 
@@ -113,12 +114,48 @@ def pick_files():
 
 # ------------------------------------------------------------------ 匯入
 def add_setup_cell(nb):
-    """在最上面加上 import 與初始設定（已經有 import statkit 的話不加）。回傳有沒有加。"""
+    """加上 import 與初始設定（已經有 import statkit 的話不加）。回傳有沒有加。
+
+    考卷第一格通常是標題、考試規則與 Name / Student ID 欄位，所以放在第一個 markdown cell 之後；
+    第一格不是 markdown 才放在最上面。
+    """
     if any(c.cell_type == "code" and "import statkit" in c.source for c in nb.cells):
         return False
-    nb.cells.insert(0, nbformat.v4.new_code_cell(SETUP_CELL))
+    pos = 1 if nb.cells and nb.cells[0].cell_type == "markdown" else 0
+    nb.cells.insert(pos, nbformat.v4.new_code_cell(SETUP_CELL))
     nb.metadata.setdefault("kernelspec", {"display_name": "Python 3 (ipykernel)", "language": "python", "name": "python3"})
     return True
+
+
+DATA_RE = re.compile(r"""["']([^"'\\/]+\.(?:xlsx|xls|csv))["']""", re.I)
+ID_FIELD_RE = re.compile(r"Student\s*ID|學號", re.I)
+
+
+def data_files(nb):
+    """考卷程式碼裡用到、沒有寫路徑的資料檔名（例如 pd.read_excel("Stat_midterm_data.xlsx")）。"""
+    names = []
+    for c in nb.cells:
+        for name in DATA_RE.findall(c.source):
+            if name not in names:
+                names.append(name)
+    return names
+
+
+def copy_data_files(nb, src_dir, exam_dir):
+    """把考卷用到的資料檔從考卷的來源資料夾一起複製到 exam/（考卷用不含路徑的檔名讀，資料要跟考卷放在一起）。
+    回傳 (已複製或已存在, 找不到)。"""
+    ok, missing = [], []
+    for name in data_files(nb):
+        dst = exam_dir / name
+        src = src_dir / name
+        if dst.exists():
+            ok.append(name)
+        elif src.is_file():
+            shutil.copy2(src, dst)
+            ok.append(name)
+        else:
+            missing.append(name)
+    return ok, missing
 
 
 def free_name(path):
@@ -129,14 +166,15 @@ def free_name(path):
     return candidate
 
 
-def import_exam(src, exam_dir=EXAM_DIR, ask=input):
-    """把 src 匯入 exam_dir（保留原檔名）並加上 setup cell，回傳匯入後的路徑。
+def import_exam(src, exam_dir=EXAM_DIR, ask=input, report=print):
+    """把 src 匯入 exam_dir（保留原檔名）、加上 setup cell，並把考卷用到的資料檔一起複製過去。回傳匯入後的路徑。
 
     已經在 exam_dir 裡的檔案直接處理；exam_dir 有同名檔案時用 ask 問要打開舊的還是另存。
     """
     src = Path(src).resolve()
     if src.suffix.lower() != ".ipynb":
         raise ValueError(f"{src.name} 不是 .ipynb 檔")
+    exam_dir = Path(exam_dir)
     exam_dir.mkdir(parents=True, exist_ok=True)
     if src.parent == exam_dir.resolve():
         dst = src
@@ -152,6 +190,11 @@ def import_exam(src, exam_dir=EXAM_DIR, ask=input):
     nb = nbformat.read(dst, as_version=4)
     if add_setup_cell(nb):
         nbformat.write(nb, dst)
+    ok, missing = copy_data_files(nb, src.parent, exam_dir)
+    for name in ok:
+        report(f"  資料檔：{name}（已經在 exam\\ 裡，跟考卷放在一起）")
+    for name in missing:
+        report(f"  ⚠ 考卷會讀 {name}，但在 {src.parent} 找不到。請下載後放到 exam\\（跟考卷同一個資料夾）")
     return dst
 
 
@@ -191,11 +234,13 @@ def main(argv):
         student = ask_student()
         if student:
             save_student(student)
+    has_field = any(ID_FIELD_RE.search(c.source) for p in imported for c in nbformat.read(p, as_version=4).cells[:3])
+    where = "考卷開頭的 Name / Student ID 欄位" if has_field else "考卷裡（依老師的格式）"
     if student:
-        print(f"\n★ 記得依老師的格式在考卷裡寫上：學號 {student['id']}、姓名 {student['name']}")
+        print(f"\n★ 記得在{where}寫上：學號 {student['id']}、姓名 {student['name']}")
     else:
-        print("\n★ 記得依老師的格式在考卷裡寫上學號、姓名")
-    print("  最上面那一格是 import 與初始設定，請先執行它。")
+        print(f"\n★ 記得在{where}寫上學號、姓名")
+    print("  標題下面那一格是 import 與初始設定，請先執行它。答案用 print 印出來，不需要四捨五入（除非題目要求）。")
     if "--open" in argv:
         for path in imported:
             open_in_vscode(path)

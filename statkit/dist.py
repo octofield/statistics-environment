@@ -153,17 +153,123 @@ def Expon(lam):
     return Dist(stats.expon(scale=inv), f"scale={scale}", label)
 
 
+def _r4(v):
+    return fmt(round(float(v), 4))
+
+
+class NormalDist(Dist):
+    """常態分布，可以直接做運算（講義 06a 定理 1、2）：
+
+        a * X + b      → ND(aμ + b, |a|σ)
+        X + Y、X - Y   → ND(μx ± μy, √(σx² + σy²))（X、Y 要獨立）
+        X.sample_mean(n) → ND(μ, σ/√n)
+
+    W.explain() 會印出 μ、σ 的算式與程式碼。
+    """
+
+    def __init__(self, mu, sigma, kw=None, terms=None, const=0.0, how=None):
+        mu, sigma = float(mu), float(sigma)
+        if sigma <= 0:
+            raise ValueError("常態分布的標準差 σ 要大於 0")
+        super().__init__(stats.norm(loc=mu, scale=sigma), kw or f"loc={fmt(mu)}, scale={fmt(sigma)}",
+                         f"ND(μ={_r4(mu)}, σ={_r4(sigma)})")
+        self.mu, self.sigma = mu, sigma
+        # 線性組合的組成：[(係數, 原本的常態)]，加上常數；同一個變數出現兩次會合併（X + X = 2X，不是獨立相加）
+        self._terms = terms if terms is not None else [(1.0, self)]
+        self._const = float(const)
+        self._how = how
+
+    # -------------------------------------------------------- 運算
+    @staticmethod
+    def _combine(terms, const):
+        merged = {}
+        for a, base in terms:
+            key = id(base)
+            merged[key] = (merged.get(key, (0.0, base))[0] + a, base)
+        terms = [(a, b) for a, b in merged.values() if a != 0]
+        mu = sum(a * b.mu for a, b in terms) + const
+        var = sum(a * a * b.sigma ** 2 for a, b in terms)
+        num = fmt
+        mu_expr = " + ".join(f"{num(a)}*{num(b.mu)}" if a != 1 else num(b.mu) for a, b in terms)
+        if const:
+            mu_expr += f" + {num(const)}"
+        coef = lambda a: f"({num(a)})" if a < 0 else num(a)      # -2**2 在 Python 是 -4，要寫成 (-2)**2
+        var_expr = " + ".join(f"{coef(a)}**2 * {num(b.sigma)}**2" if a != 1 else f"{num(b.sigma)}**2" for a, b in terms)
+        kw = f"loc={mu_expr}, scale=math.sqrt({var_expr})"
+        how = (f"μ = {mu_expr.replace('*', '×')} = {_r4(mu)}\n"
+               f"σ² = {var_expr.replace('**2', '²').replace('*', '×')} = {_r4(var)}　→　σ = {_r4(math.sqrt(var))}")
+        if var <= 0:
+            raise ValueError("結果是常數（例如 X - X），不是常態分布；同一個變數出現兩次時係數會合併")
+        return NormalDist(mu, math.sqrt(var), kw=kw, terms=terms, const=const, how=how)
+
+    def __mul__(self, a):
+        if isinstance(a, NormalDist):
+            raise TypeError("兩個常態相乘不是常態分布；線性組合請寫成 a*X + b*Y")
+        return self._combine([(t * a, b) for t, b in self._terms], self._const * a)
+
+    __rmul__ = __mul__
+
+    def __truediv__(self, a):
+        return self * (1 / a)
+
+    def __neg__(self):
+        return self * -1
+
+    def __add__(self, other):
+        if isinstance(other, NormalDist):
+            return self._combine(self._terms + other._terms, self._const + other._const)
+        return self._combine(list(self._terms), self._const + other)
+
+    __radd__ = __add__
+
+    def __sub__(self, other):
+        return self + (-other)
+
+    def __rsub__(self, other):
+        return (-self) + other
+
+    # -------------------------------------------------------- 說明
+    def sample_mean(self, n, show=True):
+        """樣本大小 n 的樣本平均數 X̄ ~ ND(μ, σ/√n)（講義 06a 定理 5；母體是常態時）。
+
+        參數
+            n        : 樣本大小
+            show     : True 印出 σ/√n 的計算
+        例
+            X = sk.Normal(80, 10)
+            Xbar = X.sample_mean(4)       # ND(80, 5)
+            Xbar.P('X > 82')
+        """
+        se = self.sigma / math.sqrt(n)
+        d = NormalDist(self.mu, se, kw=f"loc={fmt(self.mu)}, scale={fmt(self.sigma)} / math.sqrt({n})",
+                       how=f"X̄ ~ ND(μ, σ/√n) = ND({_r4(self.mu)}, {_r4(self.sigma)}/√{n}) = ND({_r4(self.mu)}, {_r4(se)})")
+        if show:
+            print(d._how)
+            print(f"程式碼：stats.norm.cdf(x=..., {d.kw})")
+        return d
+
+    def explain(self):
+        """印出這個常態分布的 μ、σ 是怎麼算出來的，以及程式碼裡的寫法。"""
+        print(self.label)
+        if self._how:
+            print(self._how)
+        print(f"程式碼：stats.norm.cdf(x=..., {self.kw})")
+
+    def __repr__(self):
+        return super().__repr__() + ("　（.explain() 看算式）" if self._how else "")
+
+
 def Normal(mu=0, sigma=1):
-    """常態分布 ND(μ, σ)。
+    """常態分布 ND(μ, σ)。可以直接做運算：2*X + 3*Y + 6、X.sample_mean(n)（見 sk.NormalDist）。
 
     參數
         mu       : 平均數 μ
         sigma    : 標準差 σ（> 0）；注意不是變異數
     例
         sk.Normal(80, 10).P('70 <= X <= 90')
+        W = 6 + 2 * sk.Normal(81, 8) + 3 * sk.Normal(12, 3)     # 獨立常態的線性組合
     """
-    return Dist(stats.norm(loc=mu, scale=sigma), f"loc={fmt(mu)}, scale={fmt(sigma)}",
-                f"ND(μ={fmt(mu)}, σ={fmt(sigma)})")
+    return NormalDist(mu, sigma)
 
 
 def Discrete(xs, ps):
@@ -333,6 +439,26 @@ def _evaluate(d, query):
                 expr=f"1 - {cdf(a)}", region=(a, None))
 
 
+_OR_RE = re.compile(r"\s+(?:or|OR|Or)\s+|\s*(?:或|\|\|)\s*")
+
+
+def _evaluate_any(d, query):
+    """跟 _evaluate 一樣，另外支援「或」：'X <= 114 or X >= 126'（兩段機率相加，區間不能重疊）。
+    回傳的 regions 是要塗色的區間 list。"""
+    parts = [p for p in _OR_RE.split(_normalize(query)) if p.strip()]
+    rs = [_evaluate(d, p) for p in parts]
+    if len(rs) == 1:
+        r = dict(rs[0])
+        r["regions"] = [r["region"]] if r["region"] else []
+        return r
+    wrap = lambda s: f"({s})" if " - " in s else s
+    return dict(title=" 或 ".join(r["title"] for r in rs),
+                value=sum(r["value"] for r in rs),
+                math=" + ".join(wrap(r["math"]) for r in rs),
+                expr=" + ".join(wrap(r["expr"]) for r in rs),
+                region=None, regions=[r["region"] for r in rs if r["region"]])
+
+
 # ---------------------------------------------------------------- 計算
 
 def prob(d, query, digits=4, show=True):
@@ -341,16 +467,18 @@ def prob(d, query, digits=4, show=True):
     參數
         d        : 分布，例如 sk.Binom(10, 0.4)、sk.Normal(80, 10)，或 scipy 的 stats.norm(80, 10)
         query    : 條件字串，例如 'X >= 10'、'2 < X <= 5'、'X == 3'、'P(X ≤ 4)'；
-                   數字可以寫算式，例如 'X > 25/60'
+                   數字可以寫算式，例如 'X > 25/60'；
+                   兩邊的尾巴用 or（或「或」）連起來，例如 'X <= 114 or X >= 126'
         digits   : 顯示到小數第幾位
         show     : True 會印出算式與程式碼；False 只回傳數值
     回傳
         機率（float）
     例
         sk.prob(sk.Binom(20, 0.1), 'X <= 3')
+        sk.Normal(6.5, 2).P('X >= 10 or X <= 0')     # 講義 06a：above 10 or below 0
     """
     d = _as_dist(d)
-    r = _evaluate(d, query)
+    r = _evaluate_any(d, query)
     if show:
         print(f"{d.label}")
         print(f"{r['title']} = {r['math']} = {r['value']:.{digits}f}")
@@ -406,6 +534,59 @@ def moments(d, show=True):
         print(f"E[X] = {mean:.4f}，Var(X) = {var:.4f}，SD(X) = {math.sqrt(var):.4f}")
         _print_code(d, f"print({d.code('mean', None)}, {d.code('var', None)})")
     return {"mean": mean, "var": var, "std": math.sqrt(var)}
+
+
+def sample_size(sigma, margin, prob=0.99):
+    """最小樣本數：要讓樣本平均數離母體平均數不超過 margin 的機率至少 prob（母體為常態或 n 夠大）。
+
+    Pr(|X̄ − μ| ≤ margin) ≥ prob  ⇔  margin / (σ/√n) ≥ z  ⇔  n ≥ (z·σ / margin)²，z = ppf((1 + prob) / 2)
+
+    參數
+        sigma    : 母體標準差 σ
+        margin   : 允許的誤差（樣本平均數離 μ 多遠以內）
+        prob     : 落在誤差內的機率；「偏離超過 margin 的機率不超過 1%」就是 prob=0.99
+    回傳
+        n（int）
+    例
+        sk.sample_size(sigma=40, margin=6, prob=0.99)
+    """
+    z = float(stats.norm.ppf((1 + prob) / 2))
+    raw = (z * sigma / margin) ** 2
+    n = math.ceil(raw - 1e-12)
+    print(f"z = ppf((1 + {fmt(prob)}) / 2) = {z:.4f}")
+    print(f"n ≥ (z·σ / margin)² = ({z:.4f} × {fmt(sigma)} / {fmt(margin)})² = {raw:.4f}　→　最小 n = {n}")
+    achieved = 1 - 2 * stats.norm.sf(margin, 0, sigma / math.sqrt(n))
+    print(f"檢查：n = {n} 時 Pr(|X̄ − μ| ≤ {fmt(margin)}) = {achieved:.4f}")
+    print(f"程式碼：z = stats.norm.ppf((1 + {fmt(prob)}) / 2)\n"
+          f"　　　　n = math.ceil((z * {fmt(sigma)} / {fmt(margin)}) ** 2)")
+    return n
+
+
+def middle_interval(d, p=0.95, digits=4):
+    """包含中間 p 的區間 [a, b]：Pr(X < a) = Pr(X > b) = (1 − p) / 2。
+
+    參數
+        d        : 分布，例如 sk.Normal(176, 6)
+        p        : 中間的機率，例如 0.68、0.95
+        digits   : 顯示到小數第幾位
+    回傳
+        (a, b)
+    例
+        sk.middle_interval(sk.Normal(176, 6), 0.95)
+    """
+    d = _as_dist(d)
+    lo_q, hi_q = (1 - p) / 2, (1 + p) / 2
+    a, b = float(d.frozen.ppf(lo_q)), float(d.frozen.ppf(hi_q))
+    print(d.label)
+    print(f"中間 {fmt(p * 100)}%：[ppf({fmt(lo_q)}), ppf({fmt(hi_q)})] = [{a:.{digits}f}, {b:.{digits}f}]")
+    if isinstance(d, NormalDist):
+        z = float(stats.norm.ppf(hi_q))
+        print(f"　= μ ± {z:.4f}σ = {_r4(d.mu)} ± {z:.4f} × {_r4(d.sigma)}")
+        rule = {0.68: 1, 0.95: 2, 0.997: 3}.get(round(p, 3))
+        if rule:
+            print(f"　（經驗法則的近似：μ ± {rule}σ = [{_r4(d.mu - rule * d.sigma)}, {_r4(d.mu + rule * d.sigma)}]）")
+    _print_code(d, f"print({d.code('ppf', 'q', fmt(lo_q))}, {d.code('ppf', 'q', fmt(hi_q))})")
+    return a, b
 
 
 def newsvendor(D, co, cu, digits=4):
@@ -491,8 +672,11 @@ def plot_dist(d, query=None, kind="pdf", ax=None, title=None, xlabel="x"):
     """
     d = _as_dist(d)
     ax = new_ax(ax, figsize=(8, 5))
-    r = _evaluate(d, query) if query else None
-    region = r["region"] if r else None
+    r = _evaluate_any(d, query) if query else None
+    regions = r["regions"] if r else []
+
+    def inside(x):
+        return any((L is None or x >= L) and (U is None or x <= U) for L, U in regions)
 
     if d.discrete:
         a, b = _support(d)
@@ -502,10 +686,7 @@ def plot_dist(d, query=None, kind="pdf", ax=None, title=None, xlabel="x"):
             ax.set_ylabel("Cumulative probability")
         else:
             ys = d.frozen.pmf(xs)
-            colors = [FACE] * len(xs)
-            if region:
-                L, U = region
-                colors = [HIGHLIGHT if (L is None or x >= L) and (U is None or x <= U) else FACE for x in xs]
+            colors = [HIGHLIGHT if inside(x) else FACE for x in xs]
             ax.bar(xs, ys, color=colors, edgecolor=EDGE, width=0.9 if len(xs) < 60 else 1.0)
             ax.set_ylabel("Probability")
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -519,8 +700,7 @@ def plot_dist(d, query=None, kind="pdf", ax=None, title=None, xlabel="x"):
         else:
             ys = d.frozen.pdf(xs)
             ax.plot(xs, ys, color=EDGE)
-            if region:
-                L, U = region
+            for L, U in regions:
                 mask = np.ones_like(xs, dtype=bool)
                 if L is not None:
                     mask &= xs >= L
@@ -776,12 +956,16 @@ def explore(dist="norm"):
                                f"# 引數：{arg_text()}\nprint(round({expr}, 4))")
                     plot_dist(d, (f"X <= {fmt(x)}" if tail == "left" else f"X >= {fmt(x)}"), kind=kind.value)
                 else:
-                    r = _evaluate(d, query())
+                    r = _evaluate_any(d, query())
                     html = f"<b>{d.label}</b>：{r['title']} = {r['math']} = <b>{r['value']:.4f}</b>"
                     snippet = (f"from scipy import stats\n# {d.label}\n# {r['title']} = {r['math']}\n"
                                f"# 引數：{arg_text()}\nprint(round({r['expr']}, 4))")
                     plot_dist(d, query(), kind=kind.value)
-                plt.show()
+                # 直接把圖交給輸出區顯示並關掉，不留在 pyplot 裡：
+                # 否則 cell 結束時 inline backend 會再畫一次（VS Code 會出現兩張圖）
+                fig = plt.gcf()
+                plt.close(fig)
+                display(fig)
                 display(HTML(f"<div style='font-size:15px;margin:4px 0'>{html}</div>"))
                 code.value = snippet
             except Exception as e:  # 參數不合法時顯示訊息，不讓 UI 壞掉
@@ -797,8 +981,13 @@ def explore(dist="norm"):
     for w in (mode, xw, aw, bw, qw, cw, kind):
         w.observe(refresh, names="value")
     build_params()
-    refresh()
+    # VS Code 顯示互動元件時，有一部分程式要從網路下載，斷網時可能看不到輸入框（JupyterLab 有內建，斷網也能用）
+    hint = W.HTML("<div style='font-size:12px;color:#777'>看不到輸入框？VS Code 的互動元件可能需要網路："
+                  "斷網時請改用 JupyterLab（2_啟動JupyterLab.bat），或直接寫 "
+                  "<code>sk.Normal(80, 10).P('X >= 90')</code>、<code>sk.plot_dist(...)</code>。</div>")
+    # 先顯示介面、再畫第一張圖：輸出區還沒顯示時就畫圖，VS Code 會把圖畫在 cell 下方，變成兩張
     display(W.VBox([
-        W.HBox([dd, mode]), params, W.HBox([xw, aw, bw, qw, cw]), help_box, kind, out,
+        hint, W.HBox([dd, mode]), params, W.HBox([xw, aw, bw, qw, cw]), help_box, kind, out,
         W.HTML("<b>程式碼（貼到新的 cell 執行，HTML 才會保留答案）：</b>"), code,
     ]))
+    refresh()

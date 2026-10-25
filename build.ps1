@@ -220,9 +220,10 @@ foreach ($pkg in "numpy", "pandas", "scipy", "statsmodels", "sympy", "matplotlib
             Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
-# 讓任何位置的 notebook 都能 import statkit（相對於 python.exe 的路徑，換磁碟代號也沒問題）
-Set-Content -LiteralPath "$site\statkit_workspace.pth" -Encoding ascii -Value `
-    "import os, sys; sys.path.append(os.path.normpath(os.path.join(os.path.dirname(sys.executable), '..', '..', 'workspace')))"
+# Python 每次啟動都執行 _stat_exam_env：能 import statkit、PATH 以隨身碟的 Python 優先、不讀 user site-packages
+# （VS Code 不是從 1_ 啟動、或考場電腦也有 Python 時，匯出 HTML 才不會用到別的 jupyter-nbconvert）
+Copy-Item "$Repo\setup\_stat_exam_env.py" "$site\_stat_exam_env.py" -Force
+Set-Content -LiteralPath "$site\statkit_workspace.pth" -Encoding ascii -Value "import _stat_exam_env"
 $labSettings = Join-Path $WinPy "python\share\jupyter\lab\settings"
 New-Item -ItemType Directory -Force $labSettings | Out-Null
 Copy-Item "$Repo\config\jupyterlab-overrides.json" "$labSettings\overrides.json" -Force

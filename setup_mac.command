@@ -55,7 +55,7 @@ if [ $# -eq 0 ]; then
     echo "=================================================="
     echo "做出可以帶進考場、完全離線的 Python 統計考試環境，複製到隨身碟、換電腦都能用。"
     echo "  建立時會準備好：Python 與統計套件、可攜式 VS Code（關閉所有 AI）、JupyterLab、講義全文搜尋、離線文件"
-    echo "  考試時好用的：匯入考卷、statkit（一行算機率並附課程寫法）、60 個 snippets、筆記與公式總表、一鍵匯出 HTML"
+    echo "  考試時好用的：匯入考卷、statkit（一行算機率並附課程寫法）、90 多個 snippets、筆記與公式總表、一鍵匯出 HTML"
     echo "  完整介紹：$(src readme_page)"
     echo
     echo "這不是學校或任何課程的官方工具，請自行確認考試規定。"
