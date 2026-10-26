@@ -473,11 +473,17 @@ function Start-Copy {
     if ($total -le 0) { $lblStatus.Text = "正在計算檔案數量…"; [Windows.Forms.Application]::DoEvents() }
     $S.Copy = Start-UsbCopy $S.Out $S.UsbDrive $D.LogDir $total
     $null = $S.Copy.Process.Handle
-    Add-LogText "`n> robocopy → $($S.Copy.Destination)（$($S.Copy.Total) 個檔案）`n"
+    if ($S.Copy.IsUpdate) {
+        # 更新：只複製有變動的檔案，數量事先不知道 → 進度條改成來回跑動
+        $bar.Style = "Marquee"; $bar.MarqueeAnimationSpeed = 30
+        $lblStep.Text = "更新隨身碟 $($S.UsbDrive) 上的環境（只複製有變動的檔案）"
+    }
+    Add-LogText "`n> robocopy → $($S.Copy.Destination)（共 $($S.Copy.Total) 個檔案$(if ($S.Copy.IsUpdate) { '，只複製有變動的' })）`n"
 }
 
 function Finish-Wizard([string]$status) {
     $timer.Stop(); $clock.Stop()
+    $bar.Style = "Continuous"
     $S.Status = $status
     $chk = $S.Check
     switch ($status) {
@@ -489,7 +495,7 @@ function Finish-Wizard([string]$status) {
             } else {
                 $lblResult.Text = "✔ 建立完成！"
                 $lblResult.ForeColor = [Drawing.Color]::FromArgb(0, 130, 60)
-                $lblDetail.Text = "環境位置：$($S.Out)" + $(if ($S.Copy) { "`n已複製到隨身碟：$($S.Copy.Destination)" } else { "" }) +
+                $lblDetail.Text = "環境位置：$($S.Out)" + $(if ($S.Copy) { "`n已複製到隨身碟：$($S.Copy.Destination)（這次複製了 $($S.Copy.State.Lines) 個檔案）" } else { "" }) +
                                   "`n環境檢查：$(if ($chk.Passed) { '全部通過' } else { '未執行' })　｜　花費時間：$([int]$clock.Elapsed.TotalMinutes) 分鐘"
             }
         }
@@ -556,9 +562,14 @@ function Update-Progress {
         }
     } elseif ($S.Status -eq "copying") {
         $pct = Get-CopyProgress $S.Copy.LogPath $S.Copy.Total $S.Copy.State
-        $bar.Value = [math]::Min(100, 85 + [math]::Round($pct * 15 / 100))
-        $lblStatus.Text = "已複製約 $pct%（共 $($S.Copy.Total) 個檔案，隨身碟比較慢，請耐心等候）"
+        if ($S.Copy.IsUpdate) {
+            $lblStatus.Text = "已複製 $($S.Copy.State.Lines) 個有變動的檔案（沒有變動的會直接跳過，不會全部 $($S.Copy.Total) 個都複製）"
+        } else {
+            $bar.Value = [math]::Min(100, 85 + [math]::Round($pct * 15 / 100))
+            $lblStatus.Text = "已複製約 $pct%（共 $($S.Copy.Total) 個檔案，第一次複製比較久，隨身碟寫小檔案比較慢，請耐心等候）"
+        }
         if ($S.Copy.Process.HasExited) {
+            $bar.Style = "Continuous"
             if ($S.Copy.Process.ExitCode -lt 8) { $bar.Value = 100; Finish-Wizard "done" } else { Finish-Wizard "copyfailed" }
         }
     }

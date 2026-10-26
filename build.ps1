@@ -229,8 +229,9 @@ New-Item -ItemType Directory -Force $labSettings | Out-Null
 Copy-Item "$Repo\config\jupyterlab-overrides.json" "$labSettings\overrides.json" -Force
 Write-Host "預先編譯 .pyc（加快隨身碟上的啟動速度）..."
 # site-packages 在安裝時已經編譯過（uv --compile-bytecode / pip 預設），這裡只補標準函式庫
-& $Py -m compileall -q -j 0 -x "site-packages" "$WinPy\python\Lib" *> $null
-$global:LASTEXITCODE = 0
+# 用不檢查原始檔時間的 .pyc：FAT32 / exFAT 隨身碟會把檔案時間進位成 2 秒，一般的 .pyc 會被當成過期而在考場重新編譯。
+# 已經轉好的不會重寫（不用 compileall：它每次都會重寫，檔案時間一變，複製到隨身碟時又要重抄幾千個檔案）
+Run $Py "$Repo\setup\hash_pyc.py" "$WinPy\python\Lib"
 
 # ------------------------------------------------------------------ 3. VS Code
 if (-not $SkipVSCode) {

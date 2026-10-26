@@ -202,15 +202,19 @@ function Start-UsbCopy {
     param([string]$Source, [string]$Drive, [string]$LogDir, [int]$Total = 0)
     New-Item -ItemType Directory -Force $LogDir | Out-Null
     $dst = Join-Path ($Drive.TrimEnd('\') + '\') (Split-Path $Source -Leaf)
+    $isUpdate = Test-Path (Join-Path $dst "WPy64-*")
     # robocopy /E 不會刪掉隨身碟上多出來的檔案：先刪掉舊版留下、現在已經不用的檔案（清單跟 build.ps1 的 $LegacyFiles 一樣）
     foreach ($old in $script:LegacyFiles) { Remove-Item -LiteralPath (Join-Path $dst $old) -Recurse -Force -ErrorAction SilentlyContinue }
     $log = Join-Path $LogDir ("copy_{0}.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
     $total = if ($Total -gt 0) { $Total } else { (Get-ChildItem -LiteralPath $Source -Recurse -File -Force | Measure-Object).Count }
     # 不能排除 __pycache__：WinPython 裡預先編譯好的 .pyc 是讓隨身碟啟動變快的關鍵
-    $argString = (ConvertTo-ArgString @($Source, $dst)) + " /E /MT:8 /R:1 /W:1 /NP /NDL /NJH /NJS " +
+    # /FFT：FAT32 / exFAT 的檔案時間精度是 2 秒，用 2 秒的誤差比較時間，沒變動的檔案才不會被當成不同而重新複製
+    $argString = (ConvertTo-ArgString @($Source, $dst)) + " /E /FFT /MT:8 /R:1 /W:1 /NP /NDL /NJH /NJS " +
                  (ConvertTo-ArgString @("/UNILOG:$log"))
     $p = Start-Process -FilePath "$env:SystemRoot\System32\robocopy.exe" -ArgumentList $argString -WindowStyle Hidden -PassThru
-    [pscustomobject]@{ Process = $p; LogPath = $log; Destination = $dst; Total = $total; State = @{ Pos = 0; Lines = 0 } }
+    # IsUpdate：隨身碟上已經有環境 → 只會複製有變動的檔案，不能用「全部檔案數」算百分比
+    [pscustomobject]@{ Process = $p; LogPath = $log; Destination = $dst; Total = $total; IsUpdate = $isUpdate
+                       State = @{ Pos = 0; Lines = 0 } }
 }
 
 function Get-CopyProgress {

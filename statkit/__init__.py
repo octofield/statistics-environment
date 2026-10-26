@@ -18,7 +18,7 @@ from .plots import (bar, bar_grouped, box, box_by, freq_polygon, hist, hist_clas
 from .rv import expect, joint, posterior
 from .sim import estimate_pi, monty_hall, sample_means
 
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 
 _HELP = """
 statkit 功能列表　（每個函式都可以用 help(sk.函式名) 或 Shift+Tab 看說明）

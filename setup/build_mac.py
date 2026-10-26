@@ -219,7 +219,8 @@ def copy_to_usb(src, volume):
     remove_legacy(dst)                       # rsync 沒有 --delete，舊版留下的檔案要自己刪
     print(f"\n複製到 {dst}（隨身碟寫小檔案比較慢，請耐心等候）...", flush=True)
     # 不加 --delete：隨身碟上 exam\ 裡的考卷不會被刪；COPYFILE_DISABLE 避免產生 ._ 開頭的 macOS 附屬檔
-    run("rsync", "-rt", "--exclude", "._*", "--exclude", ".DS_Store", f"{src}/", f"{dst}/",
+    # --modify-window=2：FAT32 / exFAT 的檔案時間精度是 2 秒，不加的話沒變動的檔案也會被當成不同而重新複製
+    run("rsync", "-rt", "--modify-window=2", "--exclude", "._*", "--exclude", ".DS_Store", f"{src}/", f"{dst}/",
         env={**os.environ, "COPYFILE_DISABLE": "1"})
     subprocess.run(["dot_clean", "-m", str(dst)])
     print(f"已複製到隨身碟：{dst}")
@@ -313,8 +314,8 @@ def main():
                 if d.is_dir():
                     shutil.rmtree(d, ignore_errors=True)
     print("預先編譯 .pyc（加快隨身碟上的啟動速度）...", flush=True)
-    subprocess.run([sys.executable, "-m", "compileall", "-q", "-j", "0", "-x", "site-packages", str(pydir / "Lib")],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # 跟 build.ps1 一樣：標準函式庫補編譯，全部用不檢查原始檔時間的 .pyc（FAT32 / exFAT 隨身碟的時間會被進位）
+    run(sys.executable, REPO / "setup" / "hash_pyc.py", pydir / "Lib")
 
     # ------------------------------------------------------------ 3. VS Code
     if not args.skip_vscode:
