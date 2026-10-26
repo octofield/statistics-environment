@@ -62,7 +62,7 @@ sk.sample_size(sigma=10, margin=2, prob=0.95)        # 最小樣本數
 sk.joint([[0.1, 0.2, 0.2], [0.2, 0.2, 0.1]], xs=[0, 1], ys=[1, 2, 3])   # 聯合機率表：Cov、ρ、是否獨立
 sk.hist_classes(df['Food'], start=0, width=1, density=True, fit='norm')  # 直方圖疊常態曲線，並印出疊圖寫法
 sk.tidy(ax, bar_labels=True)           # 讓圖更好看：去框線、淡格線、千分位、長條標數值
-sk.explore()                           # 互動式分布計算機（VS Code 需要網路；斷網請在 JupyterLab 用）
+sk.explore()                           # 互動式分布計算機；VS Code 顯示不出來時用 sk.explore(text=True) 一問一答
 ```
 
 其他還有次數分配表、柴比雪夫、離群值（IQR、z 分數）、分組中位數、各種統計圖、常態近似、貝氏後驗（`sk.posterior`）、期望收益（`sk.expect`）、報童模型、模擬等，`sk.help()` 會列出全部。

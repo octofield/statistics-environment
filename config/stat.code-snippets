@@ -501,6 +501,12 @@
         "description": "sk.explore(分布)：互動式分布計算機。分布可填 'binom'、'poisson'、'hypergeom'、'geom'、'uniform'、'expon'、'norm'；每個參數都有說明，會產生可以貼進答案的程式碼",
         "body": ["sk.explore(${1|'norm','binom','poisson','hypergeom','geom','uniform','expon'|})$0"]
     },
+    "statkit 分布計算機（一問一答）": {
+        "scope": "python",
+        "prefix": "skexpt",
+        "description": "sk.explore(text=True)：一問一答版的分布計算機，不用互動元件（VS Code 的互動介面顯示不出來、或斷網時用）。VS Code 會在上方跳出輸入框，依序選分布、填參數、選問題，直接 Enter 用預設值；最後印出答案、課程寫法的程式碼並畫圖",
+        "body": ["sk.explore(text=True)  # 一問一答：上方會跳出輸入框$0"]
+    },
 
     "statkit 資料速覽": {
         "scope": "python",

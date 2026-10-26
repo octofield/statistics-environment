@@ -3,7 +3,7 @@
     import statkit as sk
     sk.setup()          # 字體大小、中文字型
     sk.help()           # 中文功能列表
-    sk.explore()        # 互動式分布計算機（會產生可以貼進答案的程式碼；考試斷網時請在 JupyterLab 用）
+    sk.explore()        # 互動式分布計算機（會產生可以貼進答案的程式碼；VS Code 顯示不出來就用 text=True）
 """
 from ._style import setup
 from .data import peek
@@ -76,7 +76,8 @@ statkit 功能列表　（每個函式都可以用 help(sk.函式名) 或 Shift+
   sk.moments(X)                              平均數、變異數、標準差
   sk.plot_dist(X, "X >= 10", kind="pdf")     PMF/PDF/CDF 圖 + 塗色區間
   sk.normal_approx(n, p, "25 <= X <= 30")    二項的常態近似（有/無連續校正）
-  sk.explore()                               互動式分布計算機（斷網時請在 JupyterLab 用）
+  sk.explore()                               互動式分布計算機
+  sk.explore(text=True)                      一問一答版（不用互動元件，VS Code 斷網也能用）
 
 【常態的運算與抽樣】
   W = 6 + 2 * X + 3 * Y                      獨立常態的線性組合 → 還是常態；W.explain() 看算式

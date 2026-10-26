@@ -49,6 +49,6 @@
 【注意】
   - 匯出的 HTML 用網路載入公式字型，斷網時本機預覽公式可能顯示成原始 LaTeX，上傳後正常
   - sk.explore() 的互動畫面不會出現在 HTML 裡，請把它產生的程式碼貼到 cell 執行
-  - sk.explore() 在 VS Code 裡需要網路才顯示得出輸入框；考試斷網時請在 JupyterLab 用，或直接寫 X.P('X >= 10')
+  - sk.explore() 在 VS Code 裡偶爾顯示不出輸入框：改用 sk.explore(text=True)（一問一答，斷網也能用），或在 JupyterLab 用
   - 第一次在新電腦上啟動會比較慢（建立字型快取），之後就快了
   - 拔隨身碟前先關 VS Code / JupyterLab，再「安全地移除硬體」

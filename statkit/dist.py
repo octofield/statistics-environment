@@ -149,7 +149,10 @@ def Expon(lam):
     elif lam == 1:
         scale, label = "1", "Exp(λ=1)"
     else:
-        scale, label = f"1/{fmt(lam)}", f"Exp(λ={fmt(lam)})"
+        s = fmt(lam)
+        # λ 是算式（例如 25/60）時要加括號：1/25/60 是 1/1500，不是 1/(25/60)
+        scale = f"1/({s})" if re.search(r"[^\d.]", s.lstrip("-")) else f"1/{s}"
+        label = f"Exp(λ={s})"
     return Dist(stats.expon(scale=inv), f"scale={scale}", label)
 
 
@@ -855,18 +858,106 @@ _INPUT_HELP = {
 }
 
 
-def explore(dist="norm"):
-    """互動式分布計算機：選分布、填參數、選問題，會即時畫圖並產生可以貼進答案的程式碼。
+def _plain(html):
+    """把說明裡的 HTML 標籤拿掉，給一問一答模式印出來用。"""
+    return re.sub(r"<[^>]+>", "", html).replace("&lt;", "<").replace("&gt;", ">")
 
-    每個參數都有說明（滑鼠停在輸入框上，或看下方的說明區）。
-    匯出 HTML 後互動元件不會動，所以請把下方產生的程式碼貼到新的 cell 執行。
+
+def _ask_choice(ask, prompt, n, default):
+    while True:
+        s = ask(f"{prompt}（1～{n}，直接 Enter = {default}）：").strip()
+        if not s:
+            return default
+        if s.isdigit() and 1 <= int(s) <= n:
+            return int(s)
+        print(f"  請輸入 1～{n} 的數字")
+
+
+def _ask_number(ask, prompt, default, is_int=False):
+    while True:
+        s = ask(f"{prompt}（直接 Enter = {fmt(default)}）：").strip()
+        if not s:
+            return default
+        try:
+            v = _num(s)
+        except ValueError:
+            print("  看不懂這個數字，例如 10、0.4、25/60")
+            continue
+        if is_int:
+            if not float(v).is_integer():
+                print("  這裡要整數")
+                continue
+            return int(v)
+        return v
+
+
+def _explore_text(dist="norm", ask=input):
+    """一問一答版的分布計算機：不用互動元件，VS Code 斷網或互動介面出不來時也能用。"""
+    keys = list(_SPECS)
+    print("分布計算機（一問一答模式）：VS Code 會在上方跳出輸入框，直接按 Enter 用括號裡的預設值。\n")
+    for i, k in enumerate(keys, 1):
+        print(f"  {i}. {_SPECS[k][0]}：{_SPECS[k][3]}")
+    key = keys[_ask_choice(ask, "選分布", len(keys), keys.index(dist) + 1 if dist in keys else len(keys)) - 1]
+    label, factory, specs, meaning, argtext = _SPECS[key]
+    print(f"\n{label}：{meaning}")
+    vals = [_ask_number(ask, f"{name}：{tip}", default, is_int) for name, default, is_int, tip in specs]
+    d = factory(*vals)
+    discrete = d.discrete
+
+    print()
+    for i, (text, _) in enumerate(_MODES, 1):
+        print(f"  {i}. {text}")
+    mode = _MODES[_ask_choice(ask, "要算什麼", len(_MODES), 3) - 1][1]
+    common, d_note, c_note = _MODE_HELP[mode]
+    note = d_note if discrete else c_note
+    print(f"說明：{_plain(common)}{'；' + _plain(note) if note else ''}\n")
+
+    mu, sd = float(d.frozen.mean()), float(d.frozen.std())
+    guess = round(mu) if discrete else round(mu, 2)
+    if mode == "moments":
+        moments(d)
+        query = None
+    elif mode in ("ppf", "isf"):
+        q = _ask_number(ask, "q：機率（0～1）", 0.95)
+        x = quantile(d, q, tail="left" if mode == "ppf" else "right")
+        query = f"X <= {fmt(x)}" if mode == "ppf" else f"X >= {fmt(x)}"
+    else:
+        if mode == "between":
+            a = _ask_number(ask, "a：區間下限（含）", round(mu - sd) if discrete else round(mu - sd, 2))
+            b = _ask_number(ask, "b：區間上限（含）", round(mu + sd) if discrete else round(mu + sd, 2))
+            query = f"{fmt(a)} <= X <= {fmt(b)}"
+        elif mode == "custom":
+            query = ask("條件，例如 2 < X <= 5、X >= 10、X <= 3 or X >= 8（直接 Enter = X >= 平均數）：").strip() \
+                or f"X >= {fmt(guess)}"
+        else:
+            x = _ask_number(ask, "x：要查的值", guess)
+            op = {"le": "<=", "lt": "<", "ge": ">=", "gt": ">", "eq": "=="}[mode]
+            query = f"X {op} {fmt(x)}"
+        prob(d, query)
+    print("（上面的「程式碼」貼到新的 cell 執行，匯出的 HTML 才會保留答案；想再算一次，重新執行這一格）")
+    plot_dist(d, query)
+    plt.show()
+    return d
+
+
+def explore(dist="norm", text=False, ask=input):
+    """分布計算機：選分布、填參數、選問題，會畫圖並產生可以貼進答案的程式碼。
+
+    預設是互動介面（ipywidgets）。VS Code 的互動元件偶爾會顯示不出來（VS Code 自己的問題，斷網時更常見），
+    這時候改用 text=True 的一問一答模式：VS Code 會在上方跳出輸入框，依序回答就好，不需要互動元件。
+    匯出 HTML 後互動元件不會動，所以請把產生的程式碼貼到新的 cell 執行。
 
     參數
-        dist     : 一開始顯示的分布：'binom'、'poisson'、'hypergeom'、'geom'、'uniform'、'expon'、'norm'
+        dist     : 一開始的分布：'binom'、'poisson'、'hypergeom'、'geom'、'uniform'、'expon'、'norm'
+        text     : True → 一問一答模式（不用互動元件，VS Code 斷網也能用）
+        ask      : 一問一答模式取得輸入的函式（測試用，平常不用給）
     例
         sk.explore()
         sk.explore('binom')
+        sk.explore(text=True)
     """
+    if text:
+        return _explore_text(dist, ask=ask)
     import ipywidgets as W
     from IPython.display import HTML, display
 
@@ -982,9 +1073,9 @@ def explore(dist="norm"):
         w.observe(refresh, names="value")
     build_params()
     # VS Code 顯示互動元件時，有一部分程式要從網路下載，斷網時可能看不到輸入框（JupyterLab 有內建，斷網也能用）
-    hint = W.HTML("<div style='font-size:12px;color:#777'>看不到輸入框？VS Code 的互動元件可能需要網路："
-                  "斷網時請改用 JupyterLab（2_啟動JupyterLab.bat），或直接寫 "
-                  "<code>sk.Normal(80, 10).P('X >= 90')</code>、<code>sk.plot_dist(...)</code>。</div>")
+    hint = W.HTML("<div style='font-size:12px;color:#777'>看不到輸入框？VS Code 的互動元件偶爾會顯示不出來："
+                  "改執行 <code>sk.explore(text=True)</code>（一問一答，不需要互動元件），"
+                  "或改用 JupyterLab（2_啟動JupyterLab.bat）。</div>")
     # 先顯示介面、再畫第一張圖：輸出區還沒顯示時就畫圖，VS Code 會把圖畫在 cell 下方，變成兩張
     display(W.VBox([
         hint, W.HBox([dd, mode]), params, W.HBox([xw, aw, bw, qw, cw]), help_box, kind, out,

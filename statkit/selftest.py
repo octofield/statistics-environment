@@ -186,6 +186,21 @@ def run(verbose=True):
         check("expect", sk.expect(sk.Poisson(4), g),
               3 * 4 + 10 * stats.poisson.sf(5, 4) - 5 * stats.poisson.cdf(2, 4), tol=1e-8)
 
+        # λ 是算式時程式碼要加括號（1/25/60 ≠ 1/(25/60)）
+        from statkit.dist import _num
+        lam = sk.Expon(_num("25/60"))
+        check("Expon 算式參數的程式碼", float(eval(lam.code("cdf", "x", "0.5"), {"stats": stats})),
+              stats.expon.cdf(0.5, scale=60 / 25))
+
+        # explore 的一問一答模式（不用互動元件）
+        answers = iter(["1", "10", "0.4", "3", "3"])        # 二項 Bi(10, 0.4)、Pr(X ≥ 3)
+        out = io.StringIO()
+        import warnings
+        with redirect_stdout(out), warnings.catch_warnings():
+            warnings.simplefilter("ignore")              # Agg 後端的 plt.show() 會警告
+            sk.explore(text=True, ask=lambda _: next(answers))
+        check("explore(text=True)", "0.8327" in out.getvalue(), True)
+
         # 疊圖、美化（只確認跑得過）
         sk.hist_classes(HEIGHTS, start=160, width=4, density=True, fit="norm")
         sk.freq_polygon(HEIGHTS, start=160, width=4, with_hist=True)
